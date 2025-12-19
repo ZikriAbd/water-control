@@ -35,10 +35,9 @@ function App() {
     statusIsi: "Standby",
   });
 
-  // State untuk mode yang sedang aktif di database
   const [currentMode, setCurrentMode] = useState("C");
-  // State sementara untuk pilihan user di UI sebelum klik simpan
   const [selectedMode, setSelectedMode] = useState("C");
+  const [isMasterOn, setIsMasterOn] = useState(true);
 
   const [partialSettings, setPartialSettings] = useState({
     durasi: 10,
@@ -64,6 +63,7 @@ function App() {
 
   // --- EFFECT: FIREBASE SYNC ---
   useEffect(() => {
+    // 1. Sinkronisasi Data Monitoring & Grafik
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -90,17 +90,23 @@ function App() {
       }
     });
 
+    // 2. Sinkronisasi Master Switch
+    onValue(ref(db, "kontrol/solenoid_1/master_switch"), (snap) => {
+      if (snap.exists()) setIsMasterOn(snap.val());
+    });
+
+    // 3. Sinkronisasi Data Lainnya (Mode, Waktu, History, Mingguan)
     onValue(ref(db, "history/mingguan"), (snap) => {
       if (snap.exists()) {
-        const data = snap.val();
+        const d = snap.val();
         setWeeklyData([
-          { hari: "Sen", total: data.senin || 0 },
-          { hari: "Sel", total: data.selasa || 0 },
-          { hari: "Rab", total: data.rabu || 0 },
-          { hari: "Kam", total: data.kamis || 0 },
-          { hari: "Jum", total: data.jumat || 0 },
-          { hari: "Sab", total: data.sabtu || 0 },
-          { hari: "Min", total: data.minggu || 0 },
+          { hari: "Sen", total: d.senin || 0 },
+          { hari: "Sel", total: d.selasa || 0 },
+          { hari: "Rab", total: d.rabu || 0 },
+          { hari: "Kam", total: d.kamis || 0 },
+          { hari: "Jum", total: d.jumat || 0 },
+          { hari: "Sab", total: d.sabtu || 0 },
+          { hari: "Min", total: d.minggu || 0 },
         ]);
       }
     });
@@ -124,28 +130,50 @@ function App() {
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
-        const formattedData = Object.keys(data)
-          .map((key) => ({
-            id: key,
-            ...data[key],
-          }))
+        const formatted = Object.keys(data)
+          .map((k) => ({ id: k, ...data[k] }))
           .reverse();
-        setHistoryData(formattedData);
+        setHistoryData(formatted);
       } else {
         setHistoryData([]);
       }
     });
   }, []);
 
+  // --- LOGIKA AUTO-OFF ---
+  useEffect(() => {
+    if (dataMonitoring.ketinggian >= 95 && isMasterOn) {
+      set(ref(db, "kontrol/solenoid_1/master_switch"), false);
+      if (Notification.permission === "granted") {
+        new Notification("⚠️ Aqua Control: AUTO-OFF!", {
+          body: "Tandon penuh (95%). Sistem dimatikan otomatis.",
+          icon: "/favicon.ico",
+        });
+      }
+      push(ref(db, "history/penggunaan"), {
+        tanggal: new Date().toLocaleString("id-ID"),
+        mode: "AUTO-OFF",
+        durasi: "Tandon Penuh Proteksi",
+        timestamp: serverTimestamp(),
+      });
+    }
+  }, [dataMonitoring.ketinggian]);
+
   // --- ACTIONS ---
+  const requestNotification = () => {
+    Notification.requestPermission().then((p) => {
+      if (p === "granted") alert("Notifikasi Aktif!");
+    });
+  };
+
   const handleCheckboxChange = (id) => {
     setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
   const deleteSelectedHistory = () => {
-    if (window.confirm(`Hapus ${selectedItems.length} data terpilih?`)) {
+    if (window.confirm(`Hapus ${selectedItems.length} data?`)) {
       selectedItems.forEach((id) =>
         remove(ref(db, `history/penggunaan/${id}`))
       );
@@ -153,45 +181,31 @@ function App() {
     }
   };
 
-  // Fungsi Simpan Gabungan (Mode + Waktu + Log History)
   const saveAllSettings = () => {
-    // Gunakan set() ke masing-masing path secara spesifik
-    // agar tidak terjadi error invalid key (karakter '/')
-
-    // 1. Simpan Mode Aktif
     set(ref(db, "kontrol/solenoid_1/mode_aktif"), selectedMode);
-
-    // 2. Simpan Pengaturan Partial
+    set(ref(db, "kontrol/solenoid_1/master_switch"), isMasterOn);
     set(ref(db, "kontrol/solenoid_1/set_partial"), {
       durasi_menit: parseInt(partialSettings.durasi),
       interval_menit: parseInt(partialSettings.interval),
     });
-
-    // 3. Simpan Pengaturan Random
     set(ref(db, "kontrol/solenoid_1/set_random"), {
       jam_mulai: randomSettings.mulai,
       jam_selesai: randomSettings.selesai,
     });
 
-    // 4. Catat ke History
-    const modeName =
-      selectedMode === "C"
+    const modeName = isMasterOn
+      ? selectedMode === "C"
         ? "Continue"
         : selectedMode === "P"
         ? "Partial"
-        : "Random";
+        : "Random"
+      : "OFF (Manual)";
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
       mode: modeName,
-      durasi: selectedMode === "C" ? "Non-stop" : "Sesuai Jadwal Baru",
+      durasi: isMasterOn ? "Update Jadwal" : "Manual Shutdown",
       timestamp: serverTimestamp(),
-    })
-      .then(() => {
-        alert("Pengaturan Berhasil Disimpan & Dicatat di History!");
-      })
-      .catch((error) => {
-        alert("Gagal menyimpan: " + error.message);
-      });
+    }).then(() => alert("Pengaturan Berhasil Disimpan!"));
   };
 
   return (
@@ -240,16 +254,26 @@ function App() {
             {isDarkMode ? "☀️ Light" : "🌙 Dark"}
           </div>
         </nav>
-        <div className="footer-addr">
-          Jalan Raya Sukamandi-Pantura, Desa Rancamulya, Kecamatan Patokbeusi,
-          Kabupaten Subang, Jawa Barat, 41263
-        </div>
+        <div className="footer-addr">Subang, Jawa Barat, 41263</div>
       </aside>
 
       <main className="main-content">
         <header>
           <h1>{activePage.toUpperCase()}</h1>
-          <span className="status online">● System Online</span>
+          <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
+            <button
+              onClick={requestNotification}
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "1.2rem",
+              }}
+            >
+              🔔
+            </button>
+            <span className="status online">● System Online</span>
+          </div>
         </header>
 
         {activePage === "dashboard" && (
@@ -258,12 +282,14 @@ function App() {
               <h3>Level Air Tandon</h3>
               <div className="water-tank">
                 <div
-                  className="water-level"
+                  className={`water-level ${
+                    dataMonitoring.ketinggian >= 90 ? "critical" : ""
+                  }`}
                   style={{ height: `${dataMonitoring.ketinggian}%` }}
                 ></div>
                 <span className="level-text">{dataMonitoring.ketinggian}%</span>
               </div>
-              <p className="card-info">
+              <p>
                 Status: <strong>{dataMonitoring.statusIsi}</strong>
               </p>
             </div>
@@ -272,24 +298,28 @@ function App() {
               <div className="flow-value">
                 {dataMonitoring.flowRate} <small>L/min</small>
               </div>
-              <p className="card-info">
+              <p>
                 Total: <strong>{dataMonitoring.totalVolume} ml</strong>
               </p>
               <div
                 className={`badge-mode ${
-                  currentMode === "C"
+                  isMasterOn
+                    ? currentMode === "C"
+                      ? "Continue"
+                      : currentMode === "P"
+                      ? "Partial"
+                      : "Random"
+                    : "OFF"
+                }`}
+              >
+                Mode:{" "}
+                {isMasterOn
+                  ? currentMode === "C"
                     ? "Continue"
                     : currentMode === "P"
                     ? "Partial"
                     : "Random"
-                }`}
-              >
-                Mode:{" "}
-                {currentMode === "C"
-                  ? "Continue"
-                  : currentMode === "P"
-                  ? "Partial"
-                  : "Random"}
+                  : "SISTEM OFF"}
               </div>
             </div>
           </section>
@@ -298,92 +328,107 @@ function App() {
         {activePage === "controls" && (
           <section className="controls-section fade-in">
             <div className="card full-width">
-              <h3>Konfigurasi Solenoid Valve</h3>
-              <div className="mode-selector">
-                <button
-                  className={selectedMode === "C" ? "active" : ""}
-                  onClick={() => setSelectedMode("C")}
-                >
-                  Continue
-                </button>
-                <button
-                  className={selectedMode === "P" ? "active" : ""}
-                  onClick={() => setSelectedMode("P")}
-                >
-                  Partial
-                </button>
-                <button
-                  className={selectedMode === "R" ? "active" : ""}
-                  onClick={() => setSelectedMode("R")}
-                >
-                  Random
-                </button>
-              </div>
-              <div className="settings-grid">
-                <div
-                  className={`setting-box ${
-                    selectedMode === "P" ? "highlight" : ""
-                  }`}
-                >
-                  <h4>⏱️ Mode Partial</h4>
-                  <div className="input-group">
-                    <label>Durasi ON (Menit)</label>
+              <div className="master-control-header">
+                <h3>Konfigurasi Solenoid Valve</h3>
+                <div className="master-switch-container">
+                  <span>{isMasterOn ? "Sistem Aktif" : "Sistem Nonaktif"}</span>
+                  <label className="switch">
                     <input
-                      type="number"
-                      value={partialSettings.durasi}
-                      onChange={(e) =>
-                        setPartialSettings({
-                          ...partialSettings,
-                          durasi: e.target.value,
-                        })
-                      }
+                      type="checkbox"
+                      checked={isMasterOn}
+                      onChange={() => setIsMasterOn(!isMasterOn)}
                     />
-                  </div>
-                  <div className="input-group">
-                    <label>Interval OFF (Menit)</label>
-                    <input
-                      type="number"
-                      value={partialSettings.interval}
-                      onChange={(e) =>
-                        setPartialSettings({
-                          ...partialSettings,
-                          interval: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
+                    <span className="slider round"></span>
+                  </label>
                 </div>
-                <div
-                  className={`setting-box ${
-                    selectedMode === "R" ? "highlight" : ""
-                  }`}
-                >
-                  <h4>📅 Mode Random</h4>
-                  <div className="input-group">
-                    <label>Mulai</label>
-                    <input
-                      type="time"
-                      value={randomSettings.mulai}
-                      onChange={(e) =>
-                        setRandomSettings({
-                          ...randomSettings,
-                          mulai: e.target.value,
-                        })
-                      }
-                    />
+              </div>
+              <div className={isMasterOn ? "" : "disabled-overlay"}>
+                <div className="mode-selector">
+                  <button
+                    className={selectedMode === "C" ? "active" : ""}
+                    onClick={() => setSelectedMode("C")}
+                  >
+                    Continue
+                  </button>
+                  <button
+                    className={selectedMode === "P" ? "active" : ""}
+                    onClick={() => setSelectedMode("P")}
+                  >
+                    Partial
+                  </button>
+                  <button
+                    className={selectedMode === "R" ? "active" : ""}
+                    onClick={() => setSelectedMode("R")}
+                  >
+                    Random
+                  </button>
+                </div>
+                <div className="settings-grid">
+                  <div
+                    className={`setting-box ${
+                      selectedMode === "P" ? "highlight" : ""
+                    }`}
+                  >
+                    <h4>⏱️ Mode Partial</h4>
+                    <div className="input-group">
+                      <label>ON (Menit)</label>
+                      <input
+                        type="number"
+                        value={partialSettings.durasi}
+                        onChange={(e) =>
+                          setPartialSettings({
+                            ...partialSettings,
+                            durasi: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label>OFF (Menit)</label>
+                      <input
+                        type="number"
+                        value={partialSettings.interval}
+                        onChange={(e) =>
+                          setPartialSettings({
+                            ...partialSettings,
+                            interval: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
-                  <div className="input-group">
-                    <label>Selesai</label>
-                    <input
-                      type="time"
-                      value={randomSettings.selesai}
-                      onChange={(e) =>
-                        setRandomSettings({
-                          ...randomSettings,
-                          selesai: e.target.value,
-                        })
-                      }
-                    />
+                  <div
+                    className={`setting-box ${
+                      selectedMode === "R" ? "highlight" : ""
+                    }`}
+                  >
+                    <h4>📅 Mode Random</h4>
+                    <div className="input-group">
+                      <label>Mulai</label>
+                      <input
+                        type="time"
+                        value={randomSettings.mulai}
+                        onChange={(e) =>
+                          setRandomSettings({
+                            ...randomSettings,
+                            mulai: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label>Selesai</label>
+                      <input
+                        type="time"
+                        value={randomSettings.selesai}
+                        onChange={(e) =>
+                          setRandomSettings({
+                            ...randomSettings,
+                            selesai: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
