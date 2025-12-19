@@ -134,6 +134,7 @@ function App() {
     });
   }, []);
 
+  // --- AUTO-OFF PROTEKSI ---
   useEffect(() => {
     if (dataMonitoring.ketinggian >= 95 && isMasterOn) {
       set(ref(db, "kontrol/solenoid_1/master_switch"), false);
@@ -146,7 +147,7 @@ function App() {
       push(ref(db, "history/penggunaan"), {
         tanggal: new Date().toLocaleString("id-ID"),
         mode: "AUTO-OFF",
-        durasi: "Tandon Penuh Proteksi",
+        durasi: "Proteksi Tandon Penuh",
         timestamp: serverTimestamp(),
       });
     }
@@ -173,8 +174,9 @@ function App() {
     }
   };
 
+  // --- FUNGSI SIMPAN DENGAN KETERANGAN DETAIL ---
   const saveAllSettings = () => {
-    // 1. Simpan data kontrol ke Firebase
+    // 1. Update Database Utama
     set(ref(db, "kontrol/solenoid_1/mode_aktif"), selectedMode);
     set(ref(db, "kontrol/solenoid_1/master_switch"), isMasterOn);
     set(ref(db, "kontrol/solenoid_1/set_partial"), {
@@ -186,9 +188,9 @@ function App() {
       jam_selesai: randomSettings.selesai,
     });
 
-    // 2. Logika untuk kolom Keterangan yang lebih detail
-    let keteranganLog = "";
-    const modeName = isMasterOn
+    // 2. Tentukan Keterangan Detail untuk History
+    let detailKeterangan = "";
+    const modeLabel = isMasterOn
       ? selectedMode === "C"
         ? "Continue"
         : selectedMode === "P"
@@ -197,22 +199,22 @@ function App() {
       : "OFF (Manual)";
 
     if (!isMasterOn) {
-      keteranganLog = "Sistem Dimatikan Manual";
+      detailKeterangan = "Sistem Dimatikan User";
     } else {
       if (selectedMode === "C") {
-        keteranganLog = "Aliran Non-stop";
+        detailKeterangan = "Aliran Non-stop";
       } else if (selectedMode === "P") {
-        keteranganLog = `Aktif ${partialSettings.durasi} mnt / Jeda ${partialSettings.interval} mnt`;
+        detailKeterangan = `ON: ${partialSettings.durasi}m / OFF: ${partialSettings.interval}m`;
       } else if (selectedMode === "R") {
-        keteranganLog = `Jadwal: ${randomSettings.mulai} s/d ${randomSettings.selesai}`;
+        detailKeterangan = `Jadwal: ${randomSettings.mulai} - ${randomSettings.selesai}`;
       }
     }
 
-    // 3. Push ke History
+    // 3. Catat ke History
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
-      mode: modeName,
-      durasi: keteranganLog, // Sekarang berisi info detail, bukan lagi "Update Jadwal"
+      mode: modeLabel,
+      durasi: detailKeterangan,
       timestamp: serverTimestamp(),
     }).then(() => alert("Pengaturan Berhasil Disimpan!"));
   };
