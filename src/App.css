@@ -440,6 +440,21 @@ input:checked + .ac-slider:before {
   .ac-main-content {
     padding: 80px 20px 20px;
   }
+  /* FIX GRAFIK: Mengubah grid dari 2 kolom menjadi 1 kolom di HP */
+  .ac-charts-container {
+    grid-template-columns: 1fr !important; /* Memaksa grafik turun ke bawah */
+    gap: 15px;
+  }
+
+  /* Menyesuaikan kartu grafik agar tidak terlalu tinggi di layar HP */
+  .ac-chart-card {
+    padding: 15px !important;
+  }
+
+  .ac-dashboard-grid,
+  .ac-settings-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ac-fade-in {
