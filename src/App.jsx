@@ -22,7 +22,6 @@ import {
 import "./App.css";
 
 function App() {
-  // --- STATES ---
   const [activePage, setActivePage] = useState("dashboard");
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -60,7 +59,6 @@ function App() {
     { hari: "Min", total: 0 },
   ]);
 
-  // --- EFFECT: FIREBASE SYNC ---
   useEffect(() => {
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
@@ -136,7 +134,6 @@ function App() {
     });
   }, []);
 
-  // --- AUTO-OFF LOGIC ---
   useEffect(() => {
     if (dataMonitoring.ketinggian >= 95 && isMasterOn) {
       set(ref(db, "kontrol/solenoid_1/master_switch"), false);
@@ -155,7 +152,6 @@ function App() {
     }
   }, [dataMonitoring.ketinggian, isMasterOn]);
 
-  // --- ACTIONS ---
   const requestNotification = () => {
     Notification.requestPermission().then((p) => {
       if (p === "granted") alert("Notifikasi Aktif!");
@@ -205,10 +201,9 @@ function App() {
   };
 
   return (
-    <div className={`container ${isDarkMode ? "dark-theme" : ""}`}>
-      {/* HAMBURGER BUTTON - LAYER TERATAS */}
+    <div className={`ac-container ${isDarkMode ? "dark-theme" : ""}`}>
       <div
-        className={`hamburger-btn ${isMenuOpen ? "active" : ""}`}
+        className={`ac-hamburger-btn ${isMenuOpen ? "active" : ""}`}
         onClick={() => setIsMenuOpen(!isMenuOpen)}
       >
         <span></span>
@@ -216,14 +211,16 @@ function App() {
         <span></span>
       </div>
 
-      <aside className={`sidebar ${isMenuOpen ? "open" : ""}`}>
-        <div className="sidebar-header">
+      <aside className={`ac-sidebar ${isMenuOpen ? "open" : ""}`}>
+        <div className="ac-sidebar-header">
           <h2>AquaControl</h2>
           <small>BRPI Sukamandi</small>
         </div>
         <nav>
           <div
-            className={`nav-item ${activePage === "dashboard" ? "active" : ""}`}
+            className={`ac-nav-item ${
+              activePage === "dashboard" ? "active" : ""
+            }`}
             onClick={() => {
               setActivePage("dashboard");
               setIsMenuOpen(false);
@@ -232,7 +229,9 @@ function App() {
             📊 Dashboard
           </div>
           <div
-            className={`nav-item ${activePage === "controls" ? "active" : ""}`}
+            className={`ac-nav-item ${
+              activePage === "controls" ? "active" : ""
+            }`}
             onClick={() => {
               setActivePage("controls");
               setIsMenuOpen(false);
@@ -241,7 +240,9 @@ function App() {
             ⚙️ Controls
           </div>
           <div
-            className={`nav-item ${activePage === "history" ? "active" : ""}`}
+            className={`ac-nav-item ${
+              activePage === "history" ? "active" : ""
+            }`}
             onClick={() => {
               setActivePage("history");
               setIsMenuOpen(false);
@@ -249,51 +250,60 @@ function App() {
           >
             📜 History
           </div>
-          <hr className="divider" />
-          <div className="nav-item" onClick={() => setIsDarkMode(!isDarkMode)}>
+          <hr className="ac-divider" />
+          <div
+            className="ac-nav-item"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+          >
             {isDarkMode ? "☀️ Light" : "🌙 Dark"}
           </div>
         </nav>
-        <div className="footer-addr">Jalan Tentara Pelajar No. 28, Bogor</div>
+        <div className="ac-footer-addr">
+          Jalan Tentara Pelajar No. 28, Bogor
+        </div>
       </aside>
 
-      <main className="main-content">
-        <header>
+      <main className="ac-main-content">
+        <header className="ac-header">
           <h1>{activePage.toUpperCase()}</h1>
-          <div className="header-actions">
-            <button onClick={requestNotification} className="noti-btn">
+          <div className="ac-header-actions">
+            <button onClick={requestNotification} className="ac-noti-btn">
               🔔
             </button>
-            <span className="status online">● System Online</span>
+            <span className="ac-status-online">● System Online</span>
           </div>
         </header>
 
         {activePage === "dashboard" && (
-          <section className="dashboard-grid fade-in">
-            <div className="card">
+          <section className="ac-dashboard-grid ac-fade-in">
+            <div className="ac-card">
               <h3>Level Air Tandon</h3>
-              <div className="water-tank">
+              <div className="ac-water-tank">
                 <div
-                  className={`water-level ${
+                  className={`ac-water-level ${
                     dataMonitoring.ketinggian >= 90 ? "critical" : ""
                   }`}
                   style={{ height: `${dataMonitoring.ketinggian}%` }}
                 ></div>
-                <span className="level-text">{dataMonitoring.ketinggian}%</span>
+                <span className="ac-level-text">
+                  {dataMonitoring.ketinggian}%
+                </span>
               </div>
               <p>
                 Status: <strong>{dataMonitoring.statusIsi}</strong>
               </p>
             </div>
-            <div className="card">
+            <div className="ac-card">
               <h3>Debit Aliran</h3>
-              <div className="flow-value">
+              <div className="ac-flow-value">
                 {dataMonitoring.flowRate} <small>L/min</small>
               </div>
               <p>
                 Total: <strong>{dataMonitoring.totalVolume} ml</strong>
               </p>
-              <div className={`badge-mode ${isMasterOn ? currentMode : "OFF"}`}>
+              <div
+                className={`ac-badge-mode ${isMasterOn ? currentMode : "OFF"}`}
+              >
                 {isMasterOn
                   ? currentMode === "C"
                     ? "CONTINUE"
@@ -307,24 +317,24 @@ function App() {
         )}
 
         {activePage === "controls" && (
-          <section className="controls-section fade-in">
-            <div className="card full-width">
-              <div className="master-control-header">
+          <section className="ac-controls-section ac-fade-in">
+            <div className="ac-card ac-full-width">
+              <div className="ac-master-control-header">
                 <h3>Konfigurasi Solenoid Valve</h3>
-                <div className="master-switch-container">
+                <div className="ac-master-switch-container">
                   <span>{isMasterOn ? "Sistem Aktif" : "Sistem Nonaktif"}</span>
-                  <label className="switch">
+                  <label className="ac-switch">
                     <input
                       type="checkbox"
                       checked={isMasterOn}
                       onChange={() => setIsMasterOn(!isMasterOn)}
                     />
-                    <span className="slider round"></span>
+                    <span className="ac-slider ac-round"></span>
                   </label>
                 </div>
               </div>
-              <div className={isMasterOn ? "" : "disabled-overlay"}>
-                <div className="mode-selector">
+              <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
+                <div className="ac-mode-selector">
                   <button
                     className={selectedMode === "C" ? "active" : ""}
                     onClick={() => setSelectedMode("C")}
@@ -344,14 +354,14 @@ function App() {
                     Random
                   </button>
                 </div>
-                <div className="settings-grid">
+                <div className="ac-settings-grid">
                   <div
-                    className={`setting-box ${
+                    className={`ac-setting-box ${
                       selectedMode === "P" ? "highlight" : ""
                     }`}
                   >
                     <h4>⏱️ Mode Partial</h4>
-                    <div className="input-group">
+                    <div className="ac-input-group">
                       <label>ON (Menit)</label>
                       <input
                         type="number"
@@ -364,7 +374,7 @@ function App() {
                         }
                       />
                     </div>
-                    <div className="input-group">
+                    <div className="ac-input-group">
                       <label>OFF (Menit)</label>
                       <input
                         type="number"
@@ -379,12 +389,12 @@ function App() {
                     </div>
                   </div>
                   <div
-                    className={`setting-box ${
+                    className={`ac-setting-box ${
                       selectedMode === "R" ? "highlight" : ""
                     }`}
                   >
                     <h4>📅 Mode Random</h4>
-                    <div className="input-group">
+                    <div className="ac-input-group">
                       <label>Mulai</label>
                       <input
                         type="time"
@@ -397,7 +407,7 @@ function App() {
                         }
                       />
                     </div>
-                    <div className="input-group">
+                    <div className="ac-input-group">
                       <label>Selesai</label>
                       <input
                         type="time"
@@ -413,7 +423,10 @@ function App() {
                   </div>
                 </div>
               </div>
-              <button className="btn-save-settings" onClick={saveAllSettings}>
+              <button
+                className="ac-btn-save-settings"
+                onClick={saveAllSettings}
+              >
                 💾 Simpan Pengaturan
               </button>
             </div>
@@ -421,9 +434,9 @@ function App() {
         )}
 
         {activePage === "history" && (
-          <section className="history-section fade-in">
-            <div className="charts-container">
-              <div className="card chart-card">
+          <section className="ac-history-section ac-fade-in">
+            <div className="ac-charts-container">
+              <div className="ac-card ac-chart-card">
                 <h3>Grafik Laju Aliran</h3>
                 <div style={{ width: "100%", height: 220 }}>
                   <ResponsiveContainer>
@@ -443,7 +456,7 @@ function App() {
                   </ResponsiveContainer>
                 </div>
               </div>
-              <div className="card chart-card">
+              <div className="ac-card ac-chart-card">
                 <h3>Konsumsi Mingguan</h3>
                 <div style={{ width: "100%", height: 220 }}>
                   <ResponsiveContainer>
@@ -462,20 +475,20 @@ function App() {
                 </div>
               </div>
             </div>
-            <div className="card full-width">
-              <div className="history-header">
+            <div className="ac-card ac-full-width">
+              <div className="ac-history-header">
                 <h3>Log Aktivitas</h3>
                 {selectedItems.length > 0 && (
                   <button
-                    className="btn-delete-selected"
+                    className="ac-btn-delete-selected"
                     onClick={deleteSelectedHistory}
                   >
                     🗑️ Hapus ({selectedItems.length})
                   </button>
                 )}
               </div>
-              <div className="table-container">
-                <table className="history-table">
+              <div className="ac-table-container">
+                <table className="ac-history-table">
                   <thead>
                     <tr>
                       <th>Pilih</th>
@@ -503,7 +516,7 @@ function App() {
                         <td>{index + 1}</td>
                         <td>{item.tanggal}</td>
                         <td>
-                          <span className={`badge ${item.mode}`}>
+                          <span className={`ac-badge ${item.mode}`}>
                             {item.mode}
                           </span>
                         </td>
