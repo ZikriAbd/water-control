@@ -174,7 +174,7 @@ function App() {
   };
 
   const saveAllSettings = () => {
-    // PERBAIKAN ERROR PADA GAMBAR: Jangan gunakan path sebagai key di dalam object
+    // 1. Simpan data kontrol ke Firebase
     set(ref(db, "kontrol/solenoid_1/mode_aktif"), selectedMode);
     set(ref(db, "kontrol/solenoid_1/master_switch"), isMasterOn);
     set(ref(db, "kontrol/solenoid_1/set_partial"), {
@@ -186,6 +186,8 @@ function App() {
       jam_selesai: randomSettings.selesai,
     });
 
+    // 2. Logika untuk kolom Keterangan yang lebih detail
+    let keteranganLog = "";
     const modeName = isMasterOn
       ? selectedMode === "C"
         ? "Continue"
@@ -193,10 +195,24 @@ function App() {
         ? "Partial"
         : "Random"
       : "OFF (Manual)";
+
+    if (!isMasterOn) {
+      keteranganLog = "Sistem Dimatikan Manual";
+    } else {
+      if (selectedMode === "C") {
+        keteranganLog = "Aliran Non-stop";
+      } else if (selectedMode === "P") {
+        keteranganLog = `Aktif ${partialSettings.durasi} mnt / Jeda ${partialSettings.interval} mnt`;
+      } else if (selectedMode === "R") {
+        keteranganLog = `Jadwal: ${randomSettings.mulai} s/d ${randomSettings.selesai}`;
+      }
+    }
+
+    // 3. Push ke History
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
       mode: modeName,
-      durasi: isMasterOn ? "Update Jadwal" : "Manual Shutdown",
+      durasi: keteranganLog, // Sekarang berisi info detail, bukan lagi "Update Jadwal"
       timestamp: serverTimestamp(),
     }).then(() => alert("Pengaturan Berhasil Disimpan!"));
   };
