@@ -174,6 +174,7 @@ function App() {
   };
 
   const saveAllSettings = () => {
+    // PERBAIKAN ERROR PADA GAMBAR: Jangan gunakan path sebagai key di dalam object
     set(ref(db, "kontrol/solenoid_1/mode_aktif"), selectedMode);
     set(ref(db, "kontrol/solenoid_1/master_switch"), isMasterOn);
     set(ref(db, "kontrol/solenoid_1/set_partial"), {
