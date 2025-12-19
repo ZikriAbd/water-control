@@ -260,7 +260,8 @@ function App() {
           </div>
         </nav>
         <div className="ac-footer-addr">
-          Jalan Tentara Pelajar No. 28, Bogor
+          Jalan Raya Sukamandi-Pantura, Desa Rancamulya, Kecamatan Patokbeusi,
+          Kabupaten Subang, Jawa Barat, 41263
         </div>
       </aside>
 
