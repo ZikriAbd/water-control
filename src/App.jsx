@@ -18,7 +18,6 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Legend,
 } from "recharts";
 import "./App.css";
 
@@ -63,7 +62,6 @@ function App() {
 
   // --- EFFECT: FIREBASE SYNC ---
   useEffect(() => {
-    // 1. Sinkronisasi Data Monitoring & Grafik
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -90,12 +88,10 @@ function App() {
       }
     });
 
-    // 2. Sinkronisasi Master Switch
     onValue(ref(db, "kontrol/solenoid_1/master_switch"), (snap) => {
       if (snap.exists()) setIsMasterOn(snap.val());
     });
 
-    // 3. Sinkronisasi Data Lainnya (Mode, Waktu, History, Mingguan)
     onValue(ref(db, "history/mingguan"), (snap) => {
       if (snap.exists()) {
         const d = snap.val();
@@ -140,7 +136,7 @@ function App() {
     });
   }, []);
 
-  // --- LOGIKA AUTO-OFF ---
+  // --- AUTO-OFF LOGIC ---
   useEffect(() => {
     if (dataMonitoring.ketinggian >= 95 && isMasterOn) {
       set(ref(db, "kontrol/solenoid_1/master_switch"), false);
@@ -157,7 +153,7 @@ function App() {
         timestamp: serverTimestamp(),
       });
     }
-  }, [dataMonitoring.ketinggian]);
+  }, [dataMonitoring.ketinggian, isMasterOn]);
 
   // --- ACTIONS ---
   const requestNotification = () => {
@@ -210,7 +206,11 @@ function App() {
 
   return (
     <div className={`container ${isDarkMode ? "dark-theme" : ""}`}>
-      <div className="hamburger-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+      {/* HAMBURGER BUTTON - LAYER TERATAS */}
+      <div
+        className={`hamburger-btn ${isMenuOpen ? "active" : ""}`}
+        onClick={() => setIsMenuOpen(!isMenuOpen)}
+      >
         <span></span>
         <span></span>
         <span></span>
@@ -254,22 +254,14 @@ function App() {
             {isDarkMode ? "☀️ Light" : "🌙 Dark"}
           </div>
         </nav>
-        <div className="footer-addr">Subang, Jawa Barat, 41263</div>
+        <div className="footer-addr">Jalan Tentara Pelajar No. 28, Bogor</div>
       </aside>
 
       <main className="main-content">
         <header>
           <h1>{activePage.toUpperCase()}</h1>
-          <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-            <button
-              onClick={requestNotification}
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "1.2rem",
-              }}
-            >
+          <div className="header-actions">
+            <button onClick={requestNotification} className="noti-btn">
               🔔
             </button>
             <span className="status online">● System Online</span>
@@ -301,24 +293,13 @@ function App() {
               <p>
                 Total: <strong>{dataMonitoring.totalVolume} ml</strong>
               </p>
-              <div
-                className={`badge-mode ${
-                  isMasterOn
-                    ? currentMode === "C"
-                      ? "Continue"
-                      : currentMode === "P"
-                      ? "Partial"
-                      : "Random"
-                    : "OFF"
-                }`}
-              >
-                Mode:{" "}
+              <div className={`badge-mode ${isMasterOn ? currentMode : "OFF"}`}>
                 {isMasterOn
                   ? currentMode === "C"
-                    ? "Continue"
+                    ? "CONTINUE"
                     : currentMode === "P"
-                    ? "Partial"
-                    : "Random"
+                    ? "PARTIAL"
+                    : "RANDOM"
                   : "SISTEM OFF"}
               </div>
             </div>
@@ -433,7 +414,7 @@ function App() {
                 </div>
               </div>
               <button className="btn-save-settings" onClick={saveAllSettings}>
-                💾 Simpan Pengaturan & Update History
+                💾 Simpan Pengaturan
               </button>
             </div>
           </section>
@@ -443,7 +424,7 @@ function App() {
           <section className="history-section fade-in">
             <div className="charts-container">
               <div className="card chart-card">
-                <h3>Laju Aliran (L/min)</h3>
+                <h3>Grafik Laju Aliran</h3>
                 <div style={{ width: "100%", height: 220 }}>
                   <ResponsiveContainer>
                     <LineChart data={chartData}>
@@ -463,7 +444,7 @@ function App() {
                 </div>
               </div>
               <div className="card chart-card">
-                <h3>Total Mingguan (Liter)</h3>
+                <h3>Konsumsi Mingguan</h3>
                 <div style={{ width: "100%", height: 220 }}>
                   <ResponsiveContainer>
                     <BarChart data={weeklyData}>
