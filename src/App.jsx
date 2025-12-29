@@ -28,7 +28,7 @@ function App() {
     statusIsi: "Standby",
   });
 
-  // States Pengaturan
+  // States Pengaturan & Kontrol
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
@@ -45,11 +45,12 @@ function App() {
   });
 
   const [historyData, setHistoryData] = useState([]);
-  const [chartData, setChartData] = useState([]); // Data untuk grafik tren
+  const [chartData, setChartData] = useState([]);
 
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
 
+  // --- LOGIKA NOTIFIKASI ---
   const requestPermissionAndToken = useCallback(async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -74,7 +75,7 @@ function App() {
       });
     });
 
-    // 1. Ambil Monitoring & Update Data Grafik Tren
+    // 1. Ambil Monitoring & Update Grafik Tren
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -85,7 +86,6 @@ function App() {
           totalVolume: val.kolam.total_aliran_ml,
         });
 
-        // Update Chart Data (Laju Aliran & Total Volume)
         setChartData((prev) =>
           [
             ...prev,
@@ -99,11 +99,11 @@ function App() {
               total: val.kolam.total_aliran_ml,
             },
           ].slice(-20)
-        ); // Menyimpan 20 data terakhir untuk grafik
+        );
       }
     });
 
-    // 2. Ambil Riwayat Penggunaan
+    // 2. Ambil Riwayat
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
@@ -115,7 +115,7 @@ function App() {
       }
     });
 
-    // 3. Sinkronisasi Pengaturan & Kontrol
+    // 3. Ambil Pengaturan & Kontrol
     onValue(ref(db, "pengaturan/tandon"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -141,6 +141,22 @@ function App() {
       }
     });
   }, [requestPermissionAndToken]);
+
+  // --- PROTEKSI OTOMATIS ---
+  useEffect(() => {
+    const levelAir = Number(dataMonitoring.ketinggian);
+    const batasAtas = Number(thresholdSettings.atas);
+
+    if (levelAir >= batasAtas && isMasterOn && batasAtas > 0) {
+      set(ref(db, "kontrol/solenoid_1/master_switch"), false);
+      push(ref(db, "history/penggunaan"), {
+        tanggal: new Date().toLocaleString("id-ID"),
+        mode: "AUTO-OFF",
+        durasi: `Air ${levelAir}% (Batas ${batasAtas}%)`,
+        timestamp: serverTimestamp(),
+      });
+    }
+  }, [dataMonitoring.ketinggian, thresholdSettings.atas, isMasterOn]);
 
   const saveAllSettings = () => {
     const vAtas = parseInt(thresholdSettings.atas);
@@ -242,7 +258,7 @@ function App() {
           </div>
         </header>
 
-        {/* --- DASHBOARD: Hanya Status Realtime --- */}
+        {/* --- DASHBOARD --- */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
@@ -264,17 +280,51 @@ function App() {
                 Status: <strong>{dataMonitoring.statusIsi}</strong>
               </p>
             </div>
+
             <div className="ac-card">
-              <h3>Status Aliran</h3>
+              <h3>Konfigurasi Mode</h3>
+              <div className="ac-mode-badge-container">
+                <span
+                  className={`ac-mode-badge ${
+                    selectedMode === "C" ? "active" : ""
+                  }`}
+                >
+                  {selectedMode === "C" ? "✅ Continue" : "Continue"}
+                </span>
+                <span
+                  className={`ac-mode-badge ${
+                    selectedMode === "P" ? "active" : ""
+                  }`}
+                >
+                  {selectedMode === "P" ? "✅ Partial" : "Partial"}
+                </span>
+                <span
+                  className={`ac-mode-badge ${
+                    selectedMode === "R" ? "active" : ""
+                  }`}
+                >
+                  {selectedMode === "R" ? "✅ Random" : "Random"}
+                </span>
+              </div>
+              <hr className="ac-divider-thin" />
+              <p>
+                Sistem:{" "}
+                <strong style={{ color: isMasterOn ? "#28a745" : "#dc3545" }}>
+                  {isMasterOn ? "RUNNING" : "STOPPED"}
+                </strong>
+              </p>
+              <p>
+                Lokasi: <strong>Jalan Tentara Pelajar 28</strong>
+              </p>
+            </div>
+
+            <div className="ac-card">
+              <h3>Real-time Flow</h3>
               <div className="ac-flow-value">
                 {dataMonitoring.flowRate} <small>L/min</small>
               </div>
               <p>
-                Volume Sekarang:{" "}
-                <strong>{dataMonitoring.totalVolume} ml</strong>
-              </p>
-              <p style={{ fontSize: "0.8rem", color: "#666" }}>
-                Lokasi: Jalan Tentara Pelajar No. 28, Bogor
+                Total Aliran: <strong>{dataMonitoring.totalVolume} ml</strong>
               </p>
             </div>
           </div>
@@ -286,7 +336,9 @@ function App() {
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
               <div className="ac-master-switch-container">
-                <span>{isMasterOn ? "Sistem Aktif" : "Sistem Nonaktif"}</span>
+                <span>
+                  {isMasterOn ? "Master Switch ON" : "Master Switch OFF"}
+                </span>
                 <label className="ac-switch">
                   <input
                     type="checkbox"
@@ -410,21 +462,16 @@ function App() {
           </div>
         )}
 
-        {/* --- HISTORY: Grafik Laju Aliran & Grafik Penggunaan --- */}
+        {/* --- HISTORY & CHARTS --- */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
-              {/* Grafik Laju Aliran */}
               <div className="ac-card">
-                <h3>📈 Grafik Laju Aliran (L/min)</h3>
+                <h3>📈 Grafik Laju Aliran</h3>
                 <div style={{ width: "100%", height: "200px" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        vertical={false}
-                        stroke="#eee"
-                      />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="time" hide />
                       <YAxis stroke="#888" fontSize={12} />
                       <Tooltip />
@@ -440,18 +487,12 @@ function App() {
                   </ResponsiveContainer>
                 </div>
               </div>
-
-              {/* Grafik Penggunaan (Total Volume) */}
               <div className="ac-card">
-                <h3>💧 Grafik Penggunaan (ml)</h3>
+                <h3>💧 Grafik Penggunaan</h3>
                 <div style={{ width: "100%", height: "200px" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        vertical={false}
-                        stroke="#eee"
-                      />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="time" hide />
                       <YAxis stroke="#888" fontSize={12} />
                       <Tooltip />
@@ -460,7 +501,6 @@ function App() {
                         dataKey="total"
                         stroke="#28a745"
                         fill="#d4edda"
-                        strokeWidth={2}
                         isAnimationActive={false}
                       />
                     </AreaChart>
@@ -468,13 +508,11 @@ function App() {
                 </div>
               </div>
             </div>
-
-            {/* Tabel Riwayat di Bawah Grafik */}
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
             >
-              <h3>📜 Riwayat Kejadian</h3>
+              <h3>📜 Riwayat Log</h3>
               <div className="ac-table-container">
                 <table className="ac-history-table">
                   <thead>
@@ -504,7 +542,7 @@ function App() {
                     ) : (
                       <tr>
                         <td colSpan="3" style={{ textAlign: "center" }}>
-                          Belum ada data riwayat.
+                          Belum ada log.
                         </td>
                       </tr>
                     )}
