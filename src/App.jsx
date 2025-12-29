@@ -26,7 +26,7 @@ function App() {
     statusIsi: "Standby",
   });
 
-  // States Pengaturan (Pastikan defaultnya angka)
+  // States Pengaturan
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
@@ -48,7 +48,7 @@ function App() {
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
 
-  // --- LOGIKA NOTIFIKASI CLOUD (FCM) ---
+  // --- LOGIKA NOTIFIKASI CLOUD ---
   const requestPermissionAndToken = useCallback(async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -56,7 +56,8 @@ function App() {
         const messaging = getMessaging();
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
         if (currentToken) {
-          console.log("Token FCM Berhasil Didapat:", currentToken);
+          console.log("Token FCM:", currentToken);
+          // Simpan token untuk pengiriman cloud nantinya
           set(ref(db, "tokens/admin"), currentToken);
         }
       }
@@ -71,7 +72,6 @@ function App() {
     onMessage(messaging, (payload) => {
       new Notification(payload.notification.title, {
         body: payload.notification.body,
-        icon: "/pwa-192x192.png",
       });
     });
 
@@ -100,13 +100,14 @@ function App() {
       }
     });
 
-    // 2. Ambil Data Threshold (Sinkronkan dengan key Firebase)
-    onValue(ref(db, "pengaturan/tandon"), (s) => {
-      if (s.exists()) {
-        const val = s.val();
+    // 2. Ambil Data Threshold (SINKRON DENGAN DATABASE)
+    onValue(ref(db, "pengaturan/tandon"), (snap) => {
+      if (snap.exists()) {
+        const val = snap.val();
         setThresholdSettings({
-          atas: val.threshold_atas || 90,
-          bawah: val.threshold_bawah || 30,
+          // Menggunakan key yang benar (threshold_atas) dan dipastikan Number
+          atas: Number(val.threshold_atas || 90),
+          bawah: Number(val.threshold_bawah || 30),
         });
       }
     });
@@ -145,19 +146,17 @@ function App() {
     const levelAir = Number(dataMonitoring.ketinggian);
     const batasAtas = Number(thresholdSettings.atas);
 
-    if (levelAir >= batasAtas && isMasterOn) {
-      // Matikan sistem di database
+    // Memicu notifikasi jika air mencapai batas dan sistem aktif
+    if (levelAir >= batasAtas && isMasterOn && batasAtas > 0) {
       set(ref(db, "kontrol/solenoid_1/master_switch"), false);
 
-      // Kirim Notifikasi Lokal (Hanya muncul jika web terbuka)
       if (Notification.permission === "granted") {
         new Notification("⚠️ TANDON PENUH!", {
-          body: `Level air ${levelAir}% menyentuh batas ${batasAtas}%. Sistem dihentikan otomatis.`,
+          body: `Level air ${levelAir}% menyentuh batas ${batasAtas}%. Sistem OFF.`,
           icon: "/pwa-192x192.png",
         });
       }
 
-      // Catat History
       push(ref(db, "history/penggunaan"), {
         tanggal: new Date().toLocaleString("id-ID"),
         mode: "AUTO-OFF",
@@ -169,18 +168,18 @@ function App() {
 
   // --- FUNGSI SIMPAN PENGATURAN ---
   const saveAllSettings = () => {
-    const atas = parseInt(thresholdSettings.atas);
-    const bawah = parseInt(thresholdSettings.bawah);
+    const valAtas = parseInt(thresholdSettings.atas);
+    const valBawah = parseInt(thresholdSettings.bawah);
 
-    if (bawah >= atas) {
-      alert("Batas bawah tidak boleh lebih tinggi dari batas atas!");
+    if (valBawah >= valAtas) {
+      alert("Error: Batas Bawah tidak boleh melebihi Batas Atas!");
       return;
     }
 
-    // Simpan ke Key yang benar agar menimpa data lama
+    // SIMPAN KE KEY YANG BENAR (Menghilangkan duplikasi 'atas'/'bawah')
     set(ref(db, "pengaturan/tandon"), {
-      threshold_atas: atas,
-      threshold_bawah: bawah,
+      threshold_atas: valAtas,
+      threshold_bawah: valBawah,
       max_safety_limit: 140,
     });
 
@@ -197,12 +196,11 @@ function App() {
       },
     });
 
-    alert("Pengaturan Berhasil Diperbarui!");
+    alert("Pengaturan Berhasil Disinkronkan!");
   };
 
   return (
     <div className={`ac-container ${isDarkMode ? "dark-theme" : ""}`}>
-      {/* Sidebar & Menu */}
       <div
         className={`ac-hamburger-btn ${isMenuOpen ? "active" : ""}`}
         onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -298,9 +296,7 @@ function App() {
               <div className="ac-flow-value">
                 {dataMonitoring.flowRate} <small>L/min</small>
               </div>
-              <p>
-                Total Aliran: <strong>{dataMonitoring.totalVolume} ml</strong>
-              </p>
+              <p>Total: {dataMonitoring.totalVolume} ml</p>
             </div>
           </div>
         )}
@@ -310,7 +306,7 @@ function App() {
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
               <div className="ac-master-switch-container">
-                <span>{isMasterOn ? "Sistem AKTIF" : "Sistem OFF"}</span>
+                <span>{isMasterOn ? "Sistem Aktif" : "Sistem Nonaktif"}</span>
                 <label className="ac-switch">
                   <input
                     type="checkbox"
@@ -336,7 +332,6 @@ function App() {
               </div>
 
               <div className="ac-settings-grid">
-                {/* Input Mode Partial */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "P" ? "highlight" : ""
@@ -344,7 +339,7 @@ function App() {
                 >
                   <h4>⏱️ Mode Partial</h4>
                   <div className="ac-input-group">
-                    <label>Durasi ON (Menit)</label>
+                    <label>ON (Menit)</label>
                     <input
                       type="number"
                       value={partialSettings.durasi}
@@ -357,7 +352,7 @@ function App() {
                     />
                   </div>
                   <div className="ac-input-group">
-                    <label>Jeda OFF (Menit)</label>
+                    <label>OFF (Menit)</label>
                     <input
                       type="number"
                       value={partialSettings.interval}
@@ -371,7 +366,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Input Mode Random */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "R" ? "highlight" : ""
@@ -379,7 +373,7 @@ function App() {
                 >
                   <h4>📅 Mode Random</h4>
                   <div className="ac-input-group">
-                    <label>Jam Mulai</label>
+                    <label>Mulai</label>
                     <input
                       type="time"
                       value={randomSettings.mulai}
@@ -392,7 +386,7 @@ function App() {
                     />
                   </div>
                   <div className="ac-input-group">
-                    <label>Jam Selesai</label>
+                    <label>Selesai</label>
                     <input
                       type="time"
                       value={randomSettings.selesai}
@@ -406,69 +400,37 @@ function App() {
                   </div>
                 </div>
 
-                {/* Input Threshold (Sesuai keinginan Anda: 90/80) */}
                 <div className="ac-setting-box highlight">
                   <h4>🚀 Batas Atas (%)</h4>
-                  <div className="ac-input-group">
-                    <label>Otomatis Mati</label>
-                    <input
-                      type="number"
-                      value={thresholdSettings.atas}
-                      onChange={(e) =>
-                        setThresholdSettings({
-                          ...thresholdSettings,
-                          atas: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    value={thresholdSettings.atas}
+                    onChange={(e) =>
+                      setThresholdSettings({
+                        ...thresholdSettings,
+                        atas: e.target.value,
+                      })
+                    }
+                  />
                 </div>
                 <div className="ac-setting-box highlight">
                   <h4>💧 Batas Bawah (%)</h4>
-                  <div className="ac-input-group">
-                    <label>Mulai Mengisi</label>
-                    <input
-                      type="number"
-                      value={thresholdSettings.bawah}
-                      onChange={(e) =>
-                        setThresholdSettings({
-                          ...thresholdSettings,
-                          bawah: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    value={thresholdSettings.bawah}
+                    onChange={(e) =>
+                      setThresholdSettings({
+                        ...thresholdSettings,
+                        bawah: e.target.value,
+                      })
+                    }
+                  />
                 </div>
               </div>
             </div>
             <button className="ac-btn-save-settings" onClick={saveAllSettings}>
-              💾 Simpan Semua Pengaturan
+              💾 Simpan Pengaturan
             </button>
-          </div>
-        )}
-
-        {activePage === "history" && (
-          <div className="ac-table-container ac-fade-in">
-            <table className="ac-history-table">
-              <thead>
-                <tr>
-                  <th>Waktu</th>
-                  <th>Mode</th>
-                  <th>Keterangan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyData.map((h) => (
-                  <tr key={h.id}>
-                    <td>{h.tanggal}</td>
-                    <td>
-                      <span className={`ac-badge ${h.mode}`}>{h.mode}</span>
-                    </td>
-                    <td>{h.durasi}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
       </main>
