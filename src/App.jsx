@@ -324,13 +324,7 @@ function App() {
               </div>
               <div className="ac-status-info">
                 <p>
-                  Status pengisian tandon:{" "}
-                  <strong style={{ color: isMasterOn ? "#28a745" : "#dc3545" }}>
-                    {isMasterOn ? "RUNNING" : "STOPPED"}
-                  </strong>
-                </p>
-                <p>
-                  Status Pengisian kolam:{" "}
+                  Status Pengisian Tandon:{" "}
                   <strong
                     style={{
                       color:
@@ -345,7 +339,13 @@ function App() {
                   </strong>
                 </p>
                 <p>
-                  Mode Sirkulasi:{" "}
+                  Status pengisian Kolam:{" "}
+                  <strong style={{ color: isMasterOn ? "#28a745" : "#dc3545" }}>
+                    {isMasterOn ? "RUNNING" : "STOPPED"}
+                  </strong>
+                </p>
+                <p>
+                  Mode Sirkulasi Kolam:{" "}
                   <span className="ac-active-mode-label">{getModeLabel()}</span>
                 </p>
               </div>
