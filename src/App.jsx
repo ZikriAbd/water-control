@@ -25,13 +25,15 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // States
+  // States Monitoring
   const [dataMonitoring, setDataMonitoring] = useState({
     ketinggian: 0,
     flowRate: 0,
     totalVolume: 0,
     statusIsi: "Standby",
   });
+
+  // States Pengaturan
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
@@ -47,13 +49,14 @@ function App() {
     mulai: "08:00",
     selesai: "08:30",
   });
+
   const [historyData, setHistoryData] = useState([]);
   const [chartData, setChartData] = useState([]);
 
-  // --- LOGIKA CLOUD MESSAGING (PUSH NOTIF) ---
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
 
+  // --- LOGIKA NOTIFIKASI CLOUD ---
   const requestPermissionAndToken = useCallback(async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -61,20 +64,16 @@ function App() {
         const messaging = getMessaging();
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
         if (currentToken) {
-          console.log("FCM Token:", currentToken);
-          // Simpan token ke database agar server bisa mengirim push
           set(ref(db, "tokens/admin"), currentToken);
         }
       }
     } catch (err) {
-      console.error("Gagal mendapatkan Token FCM", err);
+      console.error("FCM Error:", err);
     }
   }, []);
 
   useEffect(() => {
     requestPermissionAndToken();
-
-    // Foreground listener (saat aplikasi sedang dibuka)
     const messaging = getMessaging();
     onMessage(messaging, (payload) => {
       new Notification(payload.notification.title, {
@@ -82,7 +81,7 @@ function App() {
       });
     });
 
-    // Realtime Data Monitoring
+    // Listener Data Realtime
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -113,7 +112,7 @@ function App() {
     );
     onValue(
       ref(db, "kontrol/solenoid_1/master_switch"),
-      (s) => s.exists() && setIsMasterOn(s.val())
+      (s) => s.exists() && setIsMasterOn(snap.val())
     );
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
@@ -127,19 +126,7 @@ function App() {
     });
   }, [requestPermissionAndToken]);
 
-  // --- AUTO-OFF PROTEKSI ---
-  useEffect(() => {
-    if (dataMonitoring.ketinggian >= thresholdSettings.atas && isMasterOn) {
-      set(ref(db, "kontrol/solenoid_1/master_switch"), false);
-      push(ref(db, "history/penggunaan"), {
-        tanggal: new Date().toLocaleString("id-ID"),
-        mode: "AUTO-OFF",
-        durasi: `Batas Maks ${thresholdSettings.atas}% Tercapai`,
-        timestamp: serverTimestamp(),
-      });
-    }
-  }, [dataMonitoring.ketinggian, isMasterOn, thresholdSettings.atas]);
-
+  // --- SIMPAN PENGATURAN ---
   const saveAllSettings = () => {
     set(ref(db, "kontrol/solenoid_1"), {
       mode_aktif: selectedMode,
@@ -154,7 +141,7 @@ function App() {
       },
     });
     set(ref(db, "pengaturan/tandon"), thresholdSettings);
-    alert("Berhasil disimpan!");
+    alert("Pengaturan Berhasil Disimpan!");
   };
 
   return (
@@ -178,7 +165,10 @@ function App() {
             className={`ac-nav-item ${
               activePage === "dashboard" ? "active" : ""
             }`}
-            onClick={() => setActivePage("dashboard")}
+            onClick={() => {
+              setActivePage("dashboard");
+              setIsMenuOpen(false);
+            }}
           >
             📊 Dashboard
           </div>
@@ -186,7 +176,10 @@ function App() {
             className={`ac-nav-item ${
               activePage === "controls" ? "active" : ""
             }`}
-            onClick={() => setActivePage("controls")}
+            onClick={() => {
+              setActivePage("controls");
+              setIsMenuOpen(false);
+            }}
           >
             ⚙️ Controls
           </div>
@@ -194,7 +187,10 @@ function App() {
             className={`ac-nav-item ${
               activePage === "history" ? "active" : ""
             }`}
-            onClick={() => setActivePage("history")}
+            onClick={() => {
+              setActivePage("history");
+              setIsMenuOpen(false);
+            }}
           >
             📜 History
           </div>
@@ -206,7 +202,6 @@ function App() {
             {isDarkMode ? "☀️ Light" : "🌙 Dark"}
           </div>
         </nav>
-        <div className="ac-footer-addr">Bogor - Sukamandi Control System</div>
       </aside>
 
       <main className="ac-main-content">
@@ -243,6 +238,7 @@ function App() {
               <div className="ac-flow-value">
                 {dataMonitoring.flowRate} <small>L/min</small>
               </div>
+              <p>Total: {dataMonitoring.totalVolume} ml</p>
             </div>
           </div>
         )}
@@ -250,7 +246,7 @@ function App() {
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
             <div className="ac-master-control-header">
-              <h3>Solenoid Valve</h3>
+              <h3>Solenoid Control</h3>
               <label className="ac-switch">
                 <input
                   type="checkbox"
@@ -260,6 +256,7 @@ function App() {
                 <span className="ac-slider"></span>
               </label>
             </div>
+
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
               <div className="ac-mode-selector">
                 {["C", "P", "R"].map((m) => (
@@ -268,13 +265,85 @@ function App() {
                     className={selectedMode === m ? "active" : ""}
                     onClick={() => setSelectedMode(m)}
                   >
-                    {m === "C" ? "Cont." : m === "P" ? "Part." : "Rand."}
+                    {m === "C" ? "Continue" : m === "P" ? "Partial" : "Random"}
                   </button>
                 ))}
               </div>
+
               <div className="ac-settings-grid">
+                {/* SETTING PARTIAL */}
+                <div
+                  className={`ac-setting-box ${
+                    selectedMode === "P" ? "highlight" : ""
+                  }`}
+                >
+                  <h4>⏱️ Mode Partial</h4>
+                  <div className="ac-input-group">
+                    <label>ON (Menit)</label>
+                    <input
+                      type="number"
+                      value={partialSettings.durasi}
+                      onChange={(e) =>
+                        setPartialSettings({
+                          ...partialSettings,
+                          durasi: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="ac-input-group">
+                    <label>OFF (Menit)</label>
+                    <input
+                      type="number"
+                      value={partialSettings.interval}
+                      onChange={(e) =>
+                        setPartialSettings({
+                          ...partialSettings,
+                          interval: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* SETTING RANDOM */}
+                <div
+                  className={`ac-setting-box ${
+                    selectedMode === "R" ? "highlight" : ""
+                  }`}
+                >
+                  <h4>📅 Mode Random</h4>
+                  <div className="ac-input-group">
+                    <label>Mulai</label>
+                    <input
+                      type="time"
+                      value={randomSettings.mulai}
+                      onChange={(e) =>
+                        setRandomSettings({
+                          ...randomSettings,
+                          mulai: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="ac-input-group">
+                    <label>Selesai</label>
+                    <input
+                      type="time"
+                      value={randomSettings.selesai}
+                      onChange={(e) =>
+                        setRandomSettings({
+                          ...randomSettings,
+                          selesai: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* SETTING THRESHOLD */}
                 <div className="ac-setting-box highlight">
-                  <h4>Atas (%)</h4>
+                  <h4>🚀 Batas Atas (%)</h4>
                   <input
                     type="number"
                     value={thresholdSettings.atas}
@@ -287,7 +356,7 @@ function App() {
                   />
                 </div>
                 <div className="ac-setting-box highlight">
-                  <h4>Bawah (%)</h4>
+                  <h4>💧 Batas Bawah (%)</h4>
                   <input
                     type="number"
                     value={thresholdSettings.bawah}
@@ -302,8 +371,33 @@ function App() {
               </div>
             </div>
             <button className="ac-btn-save-settings" onClick={saveAllSettings}>
-              💾 Simpan
+              💾 Simpan Pengaturan
             </button>
+          </div>
+        )}
+
+        {activePage === "history" && (
+          <div className="ac-table-container ac-fade-in">
+            <table className="ac-history-table">
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Mode</th>
+                  <th>Keterangan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyData.map((h) => (
+                  <tr key={h.id}>
+                    <td>{h.tanggal}</td>
+                    <td>
+                      <span className={`ac-badge ${h.mode}`}>{h.mode}</span>
+                    </td>
+                    <td>{h.durasi}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </main>
