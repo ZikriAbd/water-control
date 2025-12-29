@@ -10,6 +10,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  AreaChart,
+  Area,
 } from "recharts";
 import "./App.css";
 
@@ -18,7 +20,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // States Monitoring - Sesuai JSON
+  // States Monitoring
   const [dataMonitoring, setDataMonitoring] = useState({
     ketinggian: 0,
     flowRate: 0,
@@ -43,7 +45,7 @@ function App() {
   });
 
   const [historyData, setHistoryData] = useState([]);
-  const [chartData, setChartData] = useState([]);
+  const [chartData, setChartData] = useState([]); // Data untuk grafik tren
 
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
@@ -72,7 +74,7 @@ function App() {
       });
     });
 
-    // 1. Ambil Monitoring & Update Grafik
+    // 1. Ambil Monitoring & Update Data Grafik Tren
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -83,7 +85,7 @@ function App() {
           totalVolume: val.kolam.total_aliran_ml,
         });
 
-        // Tambahkan data ke grafik (maksimal 15 data terakhir)
+        // Update Chart Data (Laju Aliran & Total Volume)
         setChartData((prev) =>
           [
             ...prev,
@@ -91,15 +93,17 @@ function App() {
               time: new Date().toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
+                second: "2-digit",
               }),
               flow: val.kolam.laju_aliran_mls,
+              total: val.kolam.total_aliran_ml,
             },
-          ].slice(-15)
-        );
+          ].slice(-20)
+        ); // Menyimpan 20 data terakhir untuk grafik
       }
     });
 
-    // 2. Ambil History
+    // 2. Ambil Riwayat Penggunaan
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
@@ -111,7 +115,7 @@ function App() {
       }
     });
 
-    // 3. Ambil Pengaturan
+    // 3. Sinkronisasi Pengaturan & Kontrol
     onValue(ref(db, "pengaturan/tandon"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -121,8 +125,6 @@ function App() {
         });
       }
     });
-
-    // 4. Ambil Kontrol
     onValue(ref(db, "kontrol/solenoid_1"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -240,9 +242,9 @@ function App() {
           </div>
         </header>
 
+        {/* --- DASHBOARD: Hanya Status Realtime --- */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
-            {/* Tandon Card */}
             <div className="ac-card">
               <h3>Level Air Tandon</h3>
               <div className="ac-water-tank">
@@ -262,42 +264,23 @@ function App() {
                 Status: <strong>{dataMonitoring.statusIsi}</strong>
               </p>
             </div>
-
-            {/* Flow Card & Grafik */}
             <div className="ac-card">
-              <h3>Debit Aliran</h3>
+              <h3>Status Aliran</h3>
               <div className="ac-flow-value">
                 {dataMonitoring.flowRate} <small>L/min</small>
               </div>
-              <div
-                style={{ width: "100%", height: "150px", marginTop: "15px" }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="#ddd"
-                    />
-                    <XAxis dataKey="time" hide />
-                    <YAxis hide domain={[0, "auto"]} />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="flow"
-                      stroke="#007bff"
-                      strokeWidth={3}
-                      dot={false}
-                      animationDuration={500}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <p>Total: {dataMonitoring.totalVolume} ml</p>
+              <p>
+                Volume Sekarang:{" "}
+                <strong>{dataMonitoring.totalVolume} ml</strong>
+              </p>
+              <p style={{ fontSize: "0.8rem", color: "#666" }}>
+                Lokasi: Jalan Tentara Pelajar No. 28, Bogor
+              </p>
             </div>
           </div>
         )}
 
+        {/* --- CONTROLS --- */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
             <div className="ac-master-control-header">
@@ -427,44 +410,107 @@ function App() {
           </div>
         )}
 
+        {/* --- HISTORY: Grafik Laju Aliran & Grafik Penggunaan --- */}
         {activePage === "history" && (
-          <div className="ac-card ac-full-width ac-fade-in">
-            <h3>📜 Riwayat Penggunaan</h3>
-            <div className="ac-table-container">
-              <table className="ac-history-table">
-                <thead>
-                  <tr>
-                    <th>Waktu</th>
-                    <th>Mode</th>
-                    <th>Keterangan</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyData.length > 0 ? (
-                    historyData.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.tanggal}</td>
-                        <td>
-                          <span
-                            className={`ac-badge ${
-                              item.mode.includes("OFF") ? "off" : "on"
-                            }`}
-                          >
-                            {item.mode}
-                          </span>
-                        </td>
-                        <td>{item.durasi}</td>
-                      </tr>
-                    ))
-                  ) : (
+          <div className="ac-fade-in">
+            <div className="ac-dashboard-grid">
+              {/* Grafik Laju Aliran */}
+              <div className="ac-card">
+                <h3>📈 Grafik Laju Aliran (L/min)</h3>
+                <div style={{ width: "100%", height: "200px" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="#eee"
+                      />
+                      <XAxis dataKey="time" hide />
+                      <YAxis stroke="#888" fontSize={12} />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="flow"
+                        stroke="#007bff"
+                        strokeWidth={3}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Grafik Penggunaan (Total Volume) */}
+              <div className="ac-card">
+                <h3>💧 Grafik Penggunaan (ml)</h3>
+                <div style={{ width: "100%", height: "200px" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="#eee"
+                      />
+                      <XAxis dataKey="time" hide />
+                      <YAxis stroke="#888" fontSize={12} />
+                      <Tooltip />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#28a745"
+                        fill="#d4edda"
+                        strokeWidth={2}
+                        isAnimationActive={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabel Riwayat di Bawah Grafik */}
+            <div
+              className="ac-card ac-full-width"
+              style={{ marginTop: "20px" }}
+            >
+              <h3>📜 Riwayat Kejadian</h3>
+              <div className="ac-table-container">
+                <table className="ac-history-table">
+                  <thead>
                     <tr>
-                      <td colSpan="3" style={{ textAlign: "center" }}>
-                        Tidak ada riwayat.
-                      </td>
+                      <th>Waktu</th>
+                      <th>Mode</th>
+                      <th>Keterangan</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {historyData.length > 0 ? (
+                      historyData.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.tanggal}</td>
+                          <td>
+                            <span
+                              className={`ac-badge ${
+                                item.mode.includes("OFF") ? "off" : "on"
+                              }`}
+                            >
+                              {item.mode}
+                            </span>
+                          </td>
+                          <td>{item.durasi}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="3" style={{ textAlign: "center" }}>
+                          Belum ada data riwayat.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
