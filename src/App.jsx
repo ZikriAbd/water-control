@@ -18,7 +18,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // States Monitoring
+  // States Monitoring - Konsisten dengan JSON "monitoring"
   const [dataMonitoring, setDataMonitoring] = useState({
     ketinggian: 0,
     flowRate: 0,
@@ -26,20 +26,22 @@ function App() {
     statusIsi: "Standby",
   });
 
-  // States Pengaturan
+  // States Pengaturan - Konsisten dengan JSON "pengaturan/tandon"
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
   });
   const [selectedMode, setSelectedMode] = useState("C");
   const [isMasterOn, setIsMasterOn] = useState(true);
+
+  // States Solenoid - Konsisten dengan JSON "kontrol/solenoid_1"
   const [partialSettings, setPartialSettings] = useState({
-    durasi: 10,
-    interval: 60,
+    durasi: 15,
+    interval: 50,
   });
   const [randomSettings, setRandomSettings] = useState({
-    mulai: "08:00",
-    selesai: "08:30",
+    mulai: "14:00",
+    selesai: "10:30",
   });
 
   const [historyData, setHistoryData] = useState([]);
@@ -48,7 +50,6 @@ function App() {
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
 
-  // --- LOGIKA NOTIFIKASI CLOUD ---
   const requestPermissionAndToken = useCallback(async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -56,13 +57,11 @@ function App() {
         const messaging = getMessaging();
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
         if (currentToken) {
-          console.log("Token FCM:", currentToken);
-          // Simpan token untuk pengiriman cloud nantinya
           set(ref(db, "tokens/admin"), currentToken);
         }
       }
     } catch (err) {
-      console.error("Gagal setup FCM:", err);
+      console.error("FCM Error:", err);
     }
   }, []);
 
@@ -75,7 +74,7 @@ function App() {
       });
     });
 
-    // 1. Ambil Data Monitoring
+    // 1. Sinkronisasi Monitoring
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -85,34 +84,21 @@ function App() {
           flowRate: val.kolam.laju_aliran_mls,
           totalVolume: val.kolam.total_aliran_ml,
         });
-        setChartData((prev) =>
-          [
-            ...prev,
-            {
-              time: new Date().toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              flow: val.kolam.laju_aliran_mls,
-            },
-          ].slice(-15)
-        );
       }
     });
 
-    // 2. Ambil Data Threshold (SINKRON DENGAN DATABASE)
+    // 2. Sinkronisasi Pengaturan Tandon
     onValue(ref(db, "pengaturan/tandon"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
         setThresholdSettings({
-          // Menggunakan key yang benar (threshold_atas) dan dipastikan Number
-          atas: Number(val.threshold_atas || 90),
-          bawah: Number(val.threshold_bawah || 30),
+          atas: Number(val.threshold_atas),
+          bawah: Number(val.threshold_bawah),
         });
       }
     });
 
-    // 3. Ambil Master Switch & Mode
+    // 3. Sinkronisasi Kontrol Solenoid
     onValue(ref(db, "kontrol/solenoid_1"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -129,60 +115,53 @@ function App() {
       }
     });
 
+    // 4. Sinkronisasi History (Disesuaikan dengan format JSON Anda)
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
-        setHistoryData(
-          Object.keys(data)
-            .map((k) => ({ id: k, ...data[k] }))
-            .reverse()
-        );
+        const list = Object.keys(data).map((key) => ({
+          id: key,
+          ...data[key],
+        }));
+        setHistoryData(list.reverse()); // Data terbaru di atas
       }
     });
   }, [requestPermissionAndToken]);
 
-  // --- CEK AUTO-OFF & NOTIFIKASI ---
+  // --- LOGIKA PROTEKSI OTOMATIS ---
   useEffect(() => {
     const levelAir = Number(dataMonitoring.ketinggian);
     const batasAtas = Number(thresholdSettings.atas);
 
-    // Memicu notifikasi jika air mencapai batas dan sistem aktif
     if (levelAir >= batasAtas && isMasterOn && batasAtas > 0) {
       set(ref(db, "kontrol/solenoid_1/master_switch"), false);
-
-      if (Notification.permission === "granted") {
-        new Notification("⚠️ TANDON PENUH!", {
-          body: `Level air ${levelAir}% menyentuh batas ${batasAtas}%. Sistem OFF.`,
-          icon: "/pwa-192x192.png",
-        });
-      }
 
       push(ref(db, "history/penggunaan"), {
         tanggal: new Date().toLocaleString("id-ID"),
         mode: "AUTO-OFF",
-        durasi: `Proteksi Batas ${batasAtas}%`,
+        durasi: `Level Air ${levelAir}% (Batas ${batasAtas}%)`,
         timestamp: serverTimestamp(),
       });
     }
   }, [dataMonitoring.ketinggian, thresholdSettings.atas, isMasterOn]);
 
-  // --- FUNGSI SIMPAN PENGATURAN ---
   const saveAllSettings = () => {
-    const valAtas = parseInt(thresholdSettings.atas);
-    const valBawah = parseInt(thresholdSettings.bawah);
+    const vAtas = parseInt(thresholdSettings.atas);
+    const vBawah = parseInt(thresholdSettings.bawah);
 
-    if (valBawah >= valAtas) {
+    if (vBawah >= vAtas) {
       alert("Error: Batas Bawah tidak boleh melebihi Batas Atas!");
       return;
     }
 
-    // SIMPAN KE KEY YANG BENAR (Menghilangkan duplikasi 'atas'/'bawah')
+    // Update Database Pengaturan
     set(ref(db, "pengaturan/tandon"), {
-      threshold_atas: valAtas,
-      threshold_bawah: valBawah,
+      threshold_atas: vAtas,
+      threshold_bawah: vBawah,
       max_safety_limit: 140,
     });
 
+    // Update Database Kontrol
     set(ref(db, "kontrol/solenoid_1"), {
       mode_aktif: selectedMode,
       master_switch: isMasterOn,
@@ -194,13 +173,15 @@ function App() {
         jam_mulai: randomSettings.mulai,
         jam_selesai: randomSettings.selesai,
       },
+      status_relay: isMasterOn, // Konsisten dengan field status_relay di JSON
     });
 
-    alert("Pengaturan Berhasil Disinkronkan!");
+    alert("Pengaturan Berhasil Disimpan!");
   };
 
   return (
     <div className={`ac-container ${isDarkMode ? "dark-theme" : ""}`}>
+      {/* Tombol Hamburger */}
       <div
         className={`ac-hamburger-btn ${isMenuOpen ? "active" : ""}`}
         onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -210,6 +191,7 @@ function App() {
         <span></span>
       </div>
 
+      {/* Sidebar */}
       <aside className={`ac-sidebar ${isMenuOpen ? "open" : ""}`}>
         <div className="ac-sidebar-header">
           <h2>AquaControl</h2>
@@ -270,6 +252,7 @@ function App() {
           </div>
         </header>
 
+        {/* HALAMAN DASHBOARD */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
@@ -301,6 +284,7 @@ function App() {
           </div>
         )}
 
+        {/* HALAMAN CONTROLS */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
             <div className="ac-master-control-header">
@@ -317,7 +301,6 @@ function App() {
                 </label>
               </div>
             </div>
-
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
               <div className="ac-mode-selector">
                 {["C", "P", "R"].map((m) => (
@@ -330,7 +313,6 @@ function App() {
                   </button>
                 ))}
               </div>
-
               <div className="ac-settings-grid">
                 <div
                   className={`ac-setting-box ${
@@ -339,7 +321,7 @@ function App() {
                 >
                   <h4>⏱️ Mode Partial</h4>
                   <div className="ac-input-group">
-                    <label>ON (Menit)</label>
+                    <label>ON (Min)</label>
                     <input
                       type="number"
                       value={partialSettings.durasi}
@@ -352,7 +334,7 @@ function App() {
                     />
                   </div>
                   <div className="ac-input-group">
-                    <label>OFF (Menit)</label>
+                    <label>OFF (Min)</label>
                     <input
                       type="number"
                       value={partialSettings.interval}
@@ -365,7 +347,6 @@ function App() {
                     />
                   </div>
                 </div>
-
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "R" ? "highlight" : ""
@@ -399,7 +380,6 @@ function App() {
                     />
                   </div>
                 </div>
-
                 <div className="ac-setting-box highlight">
                   <h4>🚀 Batas Atas (%)</h4>
                   <input
@@ -431,6 +411,49 @@ function App() {
             <button className="ac-btn-save-settings" onClick={saveAllSettings}>
               💾 Simpan Pengaturan
             </button>
+          </div>
+        )}
+
+        {/* HALAMAN HISTORY - SUDAH DITAMBAHKAN */}
+        {activePage === "history" && (
+          <div className="ac-card ac-full-width ac-fade-in">
+            <h3>📜 Riwayat Penggunaan</h3>
+            <div className="ac-table-container">
+              <table className="ac-history-table">
+                <thead>
+                  <tr>
+                    <th>Waktu</th>
+                    <th>Mode</th>
+                    <th>Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyData.length > 0 ? (
+                    historyData.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.tanggal}</td>
+                        <td>
+                          <span
+                            className={`ac-badge ${
+                              item.mode.includes("OFF") ? "off" : "on"
+                            }`}
+                          >
+                            {item.mode}
+                          </span>
+                        </td>
+                        <td>{item.durasi}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="3" style={{ textAlign: "center" }}>
+                        Tidak ada riwayat.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </main>
