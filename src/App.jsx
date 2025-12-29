@@ -50,7 +50,6 @@ function App() {
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
 
-  // --- LOGIKA NOTIFIKASI ---
   const requestPermissionAndToken = useCallback(async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -75,7 +74,6 @@ function App() {
       });
     });
 
-    // 1. Ambil Monitoring & Update Grafik Tren
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -85,7 +83,6 @@ function App() {
           flowRate: val.kolam.laju_aliran_mls,
           totalVolume: val.kolam.total_aliran_ml,
         });
-
         setChartData((prev) =>
           [
             ...prev,
@@ -103,7 +100,6 @@ function App() {
       }
     });
 
-    // 2. Ambil Riwayat
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
@@ -115,7 +111,6 @@ function App() {
       }
     });
 
-    // 3. Ambil Pengaturan & Kontrol
     onValue(ref(db, "pengaturan/tandon"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -125,6 +120,7 @@ function App() {
         });
       }
     });
+
     onValue(ref(db, "kontrol/solenoid_1"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -141,22 +137,6 @@ function App() {
       }
     });
   }, [requestPermissionAndToken]);
-
-  // --- PROTEKSI OTOMATIS ---
-  useEffect(() => {
-    const levelAir = Number(dataMonitoring.ketinggian);
-    const batasAtas = Number(thresholdSettings.atas);
-
-    if (levelAir >= batasAtas && isMasterOn && batasAtas > 0) {
-      set(ref(db, "kontrol/solenoid_1/master_switch"), false);
-      push(ref(db, "history/penggunaan"), {
-        tanggal: new Date().toLocaleString("id-ID"),
-        mode: "AUTO-OFF",
-        durasi: `Air ${levelAir}% (Batas ${batasAtas}%)`,
-        timestamp: serverTimestamp(),
-      });
-    }
-  }, [dataMonitoring.ketinggian, thresholdSettings.atas, isMasterOn]);
 
   const saveAllSettings = () => {
     const vAtas = parseInt(thresholdSettings.atas);
@@ -185,6 +165,14 @@ function App() {
       status_relay: isMasterOn,
     });
     alert("Pengaturan Berhasil Disimpan!");
+  };
+
+  // Fungsi Helper untuk Label Mode
+  const getModeLabel = () => {
+    if (selectedMode === "C") return "CONTINUE";
+    if (selectedMode === "P") return "PARTIAL";
+    if (selectedMode === "R") return "RANDOM";
+    return "UNKNOWN";
   };
 
   return (
@@ -276,46 +264,22 @@ function App() {
                   {dataMonitoring.ketinggian}%
                 </span>
               </div>
-              <p>
-                Status: <strong>{dataMonitoring.statusIsi}</strong>
-              </p>
-            </div>
-
-            <div className="ac-card">
-              <h3>Konfigurasi Mode</h3>
-              <div className="ac-mode-badge-container">
-                <span
-                  className={`ac-mode-badge ${
-                    selectedMode === "C" ? "active" : ""
-                  }`}
-                >
-                  {selectedMode === "C" ? "✅ Continue" : "Continue"}
-                </span>
-                <span
-                  className={`ac-mode-badge ${
-                    selectedMode === "P" ? "active" : ""
-                  }`}
-                >
-                  {selectedMode === "P" ? "✅ Partial" : "Partial"}
-                </span>
-                <span
-                  className={`ac-mode-badge ${
-                    selectedMode === "R" ? "active" : ""
-                  }`}
-                >
-                  {selectedMode === "R" ? "✅ Random" : "Random"}
-                </span>
+              <div className="ac-status-info">
+                <p>
+                  Status: <strong>{dataMonitoring.statusIsi}</strong>
+                </p>
+                {/* DINAMIS: Menampilkan label mode aktif saja */}
+                <p>
+                  Mode:{" "}
+                  <span className="ac-active-mode-label">{getModeLabel()}</span>
+                </p>
+                <p>
+                  Sistem:{" "}
+                  <strong style={{ color: isMasterOn ? "#28a745" : "#dc3545" }}>
+                    {isMasterOn ? "RUNNING" : "STOPPED"}
+                  </strong>
+                </p>
               </div>
-              <hr className="ac-divider-thin" />
-              <p>
-                Sistem:{" "}
-                <strong style={{ color: isMasterOn ? "#28a745" : "#dc3545" }}>
-                  {isMasterOn ? "RUNNING" : "STOPPED"}
-                </strong>
-              </p>
-              <p>
-                Lokasi: <strong>Jalan Tentara Pelajar 28</strong>
-              </p>
             </div>
 
             <div className="ac-card">
@@ -324,7 +288,11 @@ function App() {
                 {dataMonitoring.flowRate} <small>L/min</small>
               </div>
               <p>
-                Total Aliran: <strong>{dataMonitoring.totalVolume} ml</strong>
+                Total Volume: <strong>{dataMonitoring.totalVolume} ml</strong>
+              </p>
+              <hr className="ac-divider-thin" />
+              <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                Alamat: Jalan Tentara Pelajar No. 28, Kota Bogor
               </p>
             </div>
           </div>
@@ -336,9 +304,7 @@ function App() {
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
               <div className="ac-master-switch-container">
-                <span>
-                  {isMasterOn ? "Master Switch ON" : "Master Switch OFF"}
-                </span>
+                <span>{isMasterOn ? "Sistem Aktif" : "Sistem Nonaktif"}</span>
                 <label className="ac-switch">
                   <input
                     type="checkbox"
@@ -462,7 +428,7 @@ function App() {
           </div>
         )}
 
-        {/* --- HISTORY & CHARTS --- */}
+        {/* --- HISTORY --- */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
