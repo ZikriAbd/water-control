@@ -20,7 +20,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // States Monitoring
+  // States Monitoring - Sinkron dengan folder "monitoring" di JSON
   const [dataMonitoring, setDataMonitoring] = useState({
     ketinggian: 0,
     flowRate: 0,
@@ -28,7 +28,7 @@ function App() {
     statusIsi: "Standby",
   });
 
-  // States Pengaturan & Kontrol
+  // States Pengaturan & Kontrol - Sinkron dengan "pengaturan" & "kontrol" di JSON
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
@@ -74,6 +74,7 @@ function App() {
       });
     });
 
+    // 1. Ambil Data Monitoring & Grafik
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -100,6 +101,7 @@ function App() {
       }
     });
 
+    // 2. Ambil Riwayat Penggunaan
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
@@ -111,6 +113,7 @@ function App() {
       }
     });
 
+    // 3. Ambil Threshold & Kontrol
     onValue(ref(db, "pengaturan/tandon"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -120,7 +123,6 @@ function App() {
         });
       }
     });
-
     onValue(ref(db, "kontrol/solenoid_1"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -138,6 +140,7 @@ function App() {
     });
   }, [requestPermissionAndToken]);
 
+  // --- LOGIKA SIMPAN & CATAT HISTORY ---
   const saveAllSettings = () => {
     const vAtas = parseInt(thresholdSettings.atas);
     const vBawah = parseInt(thresholdSettings.bawah);
@@ -146,6 +149,7 @@ function App() {
       return;
     }
 
+    // Simpan Pengaturan ke Firebase
     set(ref(db, "pengaturan/tandon"), {
       threshold_atas: vAtas,
       threshold_bawah: vBawah,
@@ -164,10 +168,24 @@ function App() {
       },
       status_relay: isMasterOn,
     });
-    alert("Pengaturan Berhasil Disimpan!");
+
+    // CATAT KE HISTORY SAAT SIMPAN DIKLIK
+    const modeLabel =
+      selectedMode === "C"
+        ? "CONTINUE"
+        : selectedMode === "P"
+        ? "PARTIAL"
+        : "RANDOM";
+    push(ref(db, "history/penggunaan"), {
+      tanggal: new Date().toLocaleString("id-ID"),
+      mode: `SET: ${modeLabel}`,
+      durasi: `Sistem ${isMasterOn ? "AKTIF" : "OFF"} (Batas ${vAtas}%)`,
+      timestamp: serverTimestamp(),
+    });
+
+    alert("Pengaturan Berhasil Disimpan & Dicatat!");
   };
 
-  // Fungsi Helper untuk Label Mode
   const getModeLabel = () => {
     if (selectedMode === "C") return "CONTINUE";
     if (selectedMode === "P") return "PARTIAL";
@@ -246,7 +264,7 @@ function App() {
           </div>
         </header>
 
-        {/* --- DASHBOARD --- */}
+        {/* --- DASHBOARD: Indikator Mode Dinamis --- */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
@@ -268,7 +286,6 @@ function App() {
                 <p>
                   Status: <strong>{dataMonitoring.statusIsi}</strong>
                 </p>
-                {/* DINAMIS: Menampilkan label mode aktif saja */}
                 <p>
                   Mode:{" "}
                   <span className="ac-active-mode-label">{getModeLabel()}</span>
@@ -281,7 +298,6 @@ function App() {
                 </p>
               </div>
             </div>
-
             <div className="ac-card">
               <h3>Real-time Flow</h3>
               <div className="ac-flow-value">
@@ -292,8 +308,8 @@ function App() {
               </p>
               <hr className="ac-divider-thin" />
               <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                Alamat: Jl. Raya Pantura No.2, Sukamandi, Kec. Patokbeusi,
-                Kabupaten Subang, Jawa Barat 41263, Indonesia
+                Jl. Raya Pantura No.2, Sukamandi, Kec. Patokbeusi, Kabupaten
+                Subang, Jawa Barat 41263, Indonesia
               </p>
             </div>
           </div>
@@ -305,7 +321,9 @@ function App() {
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
               <div className="ac-master-switch-container">
-                <span>{isMasterOn ? "Sistem Aktif" : "Sistem Nonaktif"}</span>
+                <span>
+                  {isMasterOn ? "Master Switch ON" : "Master Switch OFF"}
+                </span>
                 <label className="ac-switch">
                   <input
                     type="checkbox"
@@ -429,7 +447,7 @@ function App() {
           </div>
         )}
 
-        {/* --- HISTORY --- */}
+        {/* --- HISTORY: Grafik Tren & Tabel Log --- */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
@@ -497,7 +515,10 @@ function App() {
                           <td>
                             <span
                               className={`ac-badge ${
-                                item.mode.includes("OFF") ? "off" : "on"
+                                item.mode.includes("SET") ||
+                                item.mode.includes("AUTO")
+                                  ? "on"
+                                  : "off"
                               }`}
                             >
                               {item.mode}
