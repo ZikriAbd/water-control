@@ -18,7 +18,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // States Monitoring - Konsisten dengan JSON "monitoring"
+  // States Monitoring - Sesuai JSON
   const [dataMonitoring, setDataMonitoring] = useState({
     ketinggian: 0,
     flowRate: 0,
@@ -26,15 +26,13 @@ function App() {
     statusIsi: "Standby",
   });
 
-  // States Pengaturan - Konsisten dengan JSON "pengaturan/tandon"
+  // States Pengaturan
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
   });
   const [selectedMode, setSelectedMode] = useState("C");
   const [isMasterOn, setIsMasterOn] = useState(true);
-
-  // States Solenoid - Konsisten dengan JSON "kontrol/solenoid_1"
   const [partialSettings, setPartialSettings] = useState({
     durasi: 15,
     interval: 50,
@@ -74,7 +72,7 @@ function App() {
       });
     });
 
-    // 1. Sinkronisasi Monitoring
+    // 1. Ambil Monitoring & Update Grafik
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -84,10 +82,36 @@ function App() {
           flowRate: val.kolam.laju_aliran_mls,
           totalVolume: val.kolam.total_aliran_ml,
         });
+
+        // Tambahkan data ke grafik (maksimal 15 data terakhir)
+        setChartData((prev) =>
+          [
+            ...prev,
+            {
+              time: new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              flow: val.kolam.laju_aliran_mls,
+            },
+          ].slice(-15)
+        );
       }
     });
 
-    // 2. Sinkronisasi Pengaturan Tandon
+    // 2. Ambil History
+    onValue(ref(db, "history/penggunaan"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.val();
+        setHistoryData(
+          Object.keys(data)
+            .map((k) => ({ id: k, ...data[k] }))
+            .reverse()
+        );
+      }
+    });
+
+    // 3. Ambil Pengaturan
     onValue(ref(db, "pengaturan/tandon"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -98,7 +122,7 @@ function App() {
       }
     });
 
-    // 3. Sinkronisasi Kontrol Solenoid
+    // 4. Ambil Kontrol
     onValue(ref(db, "kontrol/solenoid_1"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -114,54 +138,21 @@ function App() {
         });
       }
     });
-
-    // 4. Sinkronisasi History (Disesuaikan dengan format JSON Anda)
-    onValue(ref(db, "history/penggunaan"), (snap) => {
-      if (snap.exists()) {
-        const data = snap.val();
-        const list = Object.keys(data).map((key) => ({
-          id: key,
-          ...data[key],
-        }));
-        setHistoryData(list.reverse()); // Data terbaru di atas
-      }
-    });
   }, [requestPermissionAndToken]);
-
-  // --- LOGIKA PROTEKSI OTOMATIS ---
-  useEffect(() => {
-    const levelAir = Number(dataMonitoring.ketinggian);
-    const batasAtas = Number(thresholdSettings.atas);
-
-    if (levelAir >= batasAtas && isMasterOn && batasAtas > 0) {
-      set(ref(db, "kontrol/solenoid_1/master_switch"), false);
-
-      push(ref(db, "history/penggunaan"), {
-        tanggal: new Date().toLocaleString("id-ID"),
-        mode: "AUTO-OFF",
-        durasi: `Level Air ${levelAir}% (Batas ${batasAtas}%)`,
-        timestamp: serverTimestamp(),
-      });
-    }
-  }, [dataMonitoring.ketinggian, thresholdSettings.atas, isMasterOn]);
 
   const saveAllSettings = () => {
     const vAtas = parseInt(thresholdSettings.atas);
     const vBawah = parseInt(thresholdSettings.bawah);
-
     if (vBawah >= vAtas) {
       alert("Error: Batas Bawah tidak boleh melebihi Batas Atas!");
       return;
     }
 
-    // Update Database Pengaturan
     set(ref(db, "pengaturan/tandon"), {
       threshold_atas: vAtas,
       threshold_bawah: vBawah,
       max_safety_limit: 140,
     });
-
-    // Update Database Kontrol
     set(ref(db, "kontrol/solenoid_1"), {
       mode_aktif: selectedMode,
       master_switch: isMasterOn,
@@ -173,15 +164,13 @@ function App() {
         jam_mulai: randomSettings.mulai,
         jam_selesai: randomSettings.selesai,
       },
-      status_relay: isMasterOn, // Konsisten dengan field status_relay di JSON
+      status_relay: isMasterOn,
     });
-
     alert("Pengaturan Berhasil Disimpan!");
   };
 
   return (
     <div className={`ac-container ${isDarkMode ? "dark-theme" : ""}`}>
-      {/* Tombol Hamburger */}
       <div
         className={`ac-hamburger-btn ${isMenuOpen ? "active" : ""}`}
         onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -191,7 +180,6 @@ function App() {
         <span></span>
       </div>
 
-      {/* Sidebar */}
       <aside className={`ac-sidebar ${isMenuOpen ? "open" : ""}`}>
         <div className="ac-sidebar-header">
           <h2>AquaControl</h2>
@@ -252,9 +240,9 @@ function App() {
           </div>
         </header>
 
-        {/* HALAMAN DASHBOARD */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
+            {/* Tandon Card */}
             <div className="ac-card">
               <h3>Level Air Tandon</h3>
               <div className="ac-water-tank">
@@ -274,17 +262,42 @@ function App() {
                 Status: <strong>{dataMonitoring.statusIsi}</strong>
               </p>
             </div>
+
+            {/* Flow Card & Grafik */}
             <div className="ac-card">
               <h3>Debit Aliran</h3>
               <div className="ac-flow-value">
                 {dataMonitoring.flowRate} <small>L/min</small>
+              </div>
+              <div
+                style={{ width: "100%", height: "150px", marginTop: "15px" }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="#ddd"
+                    />
+                    <XAxis dataKey="time" hide />
+                    <YAxis hide domain={[0, "auto"]} />
+                    <Tooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="flow"
+                      stroke="#007bff"
+                      strokeWidth={3}
+                      dot={false}
+                      animationDuration={500}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
               <p>Total: {dataMonitoring.totalVolume} ml</p>
             </div>
           </div>
         )}
 
-        {/* HALAMAN CONTROLS */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
             <div className="ac-master-control-header">
@@ -414,7 +427,6 @@ function App() {
           </div>
         )}
 
-        {/* HALAMAN HISTORY - SUDAH DITAMBAHKAN */}
         {activePage === "history" && (
           <div className="ac-card ac-full-width ac-fade-in">
             <h3>📜 Riwayat Penggunaan</h3>
