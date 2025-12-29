@@ -292,7 +292,8 @@ function App() {
               </p>
               <hr className="ac-divider-thin" />
               <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                Alamat: Jalan Tentara Pelajar No. 28, Kota Bogor
+                Alamat: Jl. Raya Pantura No.2, Sukamandi, Kec. Patokbeusi,
+                Kabupaten Subang, Jawa Barat 41263, Indonesia
               </p>
             </div>
           </div>
