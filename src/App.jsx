@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "./firebase";
-import {
-  ref,
-  onValue,
-  set,
-  push,
-  remove,
-  serverTimestamp,
-} from "firebase/database";
+import { ref, onValue, set, push, serverTimestamp } from "firebase/database";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import {
   LineChart,
@@ -33,12 +26,11 @@ function App() {
     statusIsi: "Standby",
   });
 
-  // States Pengaturan
+  // States Pengaturan (Pastikan defaultnya angka)
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
   });
-  const [currentMode, setCurrentMode] = useState("C");
   const [selectedMode, setSelectedMode] = useState("C");
   const [isMasterOn, setIsMasterOn] = useState(true);
   const [partialSettings, setPartialSettings] = useState({
@@ -56,7 +48,7 @@ function App() {
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
 
-  // --- LOGIKA NOTIFIKASI CLOUD ---
+  // --- LOGIKA NOTIFIKASI CLOUD (FCM) ---
   const requestPermissionAndToken = useCallback(async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -64,11 +56,12 @@ function App() {
         const messaging = getMessaging();
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
         if (currentToken) {
+          console.log("Token FCM Berhasil Didapat:", currentToken);
           set(ref(db, "tokens/admin"), currentToken);
         }
       }
     } catch (err) {
-      console.error("FCM Error:", err);
+      console.error("Gagal setup FCM:", err);
     }
   }, []);
 
@@ -78,10 +71,11 @@ function App() {
     onMessage(messaging, (payload) => {
       new Notification(payload.notification.title, {
         body: payload.notification.body,
+        icon: "/pwa-192x192.png",
       });
     });
 
-    // Listener Data Realtime
+    // 1. Ambil Data Monitoring
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -106,14 +100,34 @@ function App() {
       }
     });
 
-    onValue(
-      ref(db, "pengaturan/tandon"),
-      (s) => s.exists() && setThresholdSettings(s.val())
-    );
-    onValue(
-      ref(db, "kontrol/solenoid_1/master_switch"),
-      (s) => s.exists() && setIsMasterOn(snap.val())
-    );
+    // 2. Ambil Data Threshold (Sinkronkan dengan key Firebase)
+    onValue(ref(db, "pengaturan/tandon"), (s) => {
+      if (s.exists()) {
+        const val = s.val();
+        setThresholdSettings({
+          atas: val.threshold_atas || 90,
+          bawah: val.threshold_bawah || 30,
+        });
+      }
+    });
+
+    // 3. Ambil Master Switch & Mode
+    onValue(ref(db, "kontrol/solenoid_1"), (snap) => {
+      if (snap.exists()) {
+        const val = snap.val();
+        setIsMasterOn(val.master_switch);
+        setSelectedMode(val.mode_aktif);
+        setPartialSettings({
+          durasi: val.set_partial.durasi_menit,
+          interval: val.set_partial.interval_menit,
+        });
+        setRandomSettings({
+          mulai: val.set_random.jam_mulai,
+          selesai: val.set_random.jam_selesai,
+        });
+      }
+    });
+
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
@@ -126,8 +140,50 @@ function App() {
     });
   }, [requestPermissionAndToken]);
 
-  // --- SIMPAN PENGATURAN ---
+  // --- CEK AUTO-OFF & NOTIFIKASI ---
+  useEffect(() => {
+    const levelAir = Number(dataMonitoring.ketinggian);
+    const batasAtas = Number(thresholdSettings.atas);
+
+    if (levelAir >= batasAtas && isMasterOn) {
+      // Matikan sistem di database
+      set(ref(db, "kontrol/solenoid_1/master_switch"), false);
+
+      // Kirim Notifikasi Lokal (Hanya muncul jika web terbuka)
+      if (Notification.permission === "granted") {
+        new Notification("⚠️ TANDON PENUH!", {
+          body: `Level air ${levelAir}% menyentuh batas ${batasAtas}%. Sistem dihentikan otomatis.`,
+          icon: "/pwa-192x192.png",
+        });
+      }
+
+      // Catat History
+      push(ref(db, "history/penggunaan"), {
+        tanggal: new Date().toLocaleString("id-ID"),
+        mode: "AUTO-OFF",
+        durasi: `Proteksi Batas ${batasAtas}%`,
+        timestamp: serverTimestamp(),
+      });
+    }
+  }, [dataMonitoring.ketinggian, thresholdSettings.atas, isMasterOn]);
+
+  // --- FUNGSI SIMPAN PENGATURAN ---
   const saveAllSettings = () => {
+    const atas = parseInt(thresholdSettings.atas);
+    const bawah = parseInt(thresholdSettings.bawah);
+
+    if (bawah >= atas) {
+      alert("Batas bawah tidak boleh lebih tinggi dari batas atas!");
+      return;
+    }
+
+    // Simpan ke Key yang benar agar menimpa data lama
+    set(ref(db, "pengaturan/tandon"), {
+      threshold_atas: atas,
+      threshold_bawah: bawah,
+      max_safety_limit: 140,
+    });
+
     set(ref(db, "kontrol/solenoid_1"), {
       mode_aktif: selectedMode,
       master_switch: isMasterOn,
@@ -140,12 +196,13 @@ function App() {
         jam_selesai: randomSettings.selesai,
       },
     });
-    set(ref(db, "pengaturan/tandon"), thresholdSettings);
-    alert("Pengaturan Berhasil Disimpan!");
+
+    alert("Pengaturan Berhasil Diperbarui!");
   };
 
   return (
     <div className={`ac-container ${isDarkMode ? "dark-theme" : ""}`}>
+      {/* Sidebar & Menu */}
       <div
         className={`ac-hamburger-btn ${isMenuOpen ? "active" : ""}`}
         onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -218,7 +275,7 @@ function App() {
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
-              <h3>Level Air</h3>
+              <h3>Level Air Tandon</h3>
               <div className="ac-water-tank">
                 <div
                   className={`ac-water-level ${
@@ -232,13 +289,18 @@ function App() {
                   {dataMonitoring.ketinggian}%
                 </span>
               </div>
+              <p>
+                Status: <strong>{dataMonitoring.statusIsi}</strong>
+              </p>
             </div>
             <div className="ac-card">
               <h3>Debit Aliran</h3>
               <div className="ac-flow-value">
                 {dataMonitoring.flowRate} <small>L/min</small>
               </div>
-              <p>Total: {dataMonitoring.totalVolume} ml</p>
+              <p>
+                Total Aliran: <strong>{dataMonitoring.totalVolume} ml</strong>
+              </p>
             </div>
           </div>
         )}
@@ -247,14 +309,17 @@ function App() {
           <div className="ac-card ac-full-width ac-fade-in">
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
-              <label className="ac-switch">
-                <input
-                  type="checkbox"
-                  checked={isMasterOn}
-                  onChange={() => setIsMasterOn(!isMasterOn)}
-                />
-                <span className="ac-slider"></span>
-              </label>
+              <div className="ac-master-switch-container">
+                <span>{isMasterOn ? "Sistem AKTIF" : "Sistem OFF"}</span>
+                <label className="ac-switch">
+                  <input
+                    type="checkbox"
+                    checked={isMasterOn}
+                    onChange={() => setIsMasterOn(!isMasterOn)}
+                  />
+                  <span className="ac-slider ac-round"></span>
+                </label>
+              </div>
             </div>
 
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
@@ -271,7 +336,7 @@ function App() {
               </div>
 
               <div className="ac-settings-grid">
-                {/* SETTING PARTIAL */}
+                {/* Input Mode Partial */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "P" ? "highlight" : ""
@@ -279,7 +344,7 @@ function App() {
                 >
                   <h4>⏱️ Mode Partial</h4>
                   <div className="ac-input-group">
-                    <label>ON (Menit)</label>
+                    <label>Durasi ON (Menit)</label>
                     <input
                       type="number"
                       value={partialSettings.durasi}
@@ -292,7 +357,7 @@ function App() {
                     />
                   </div>
                   <div className="ac-input-group">
-                    <label>OFF (Menit)</label>
+                    <label>Jeda OFF (Menit)</label>
                     <input
                       type="number"
                       value={partialSettings.interval}
@@ -306,7 +371,7 @@ function App() {
                   </div>
                 </div>
 
-                {/* SETTING RANDOM */}
+                {/* Input Mode Random */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "R" ? "highlight" : ""
@@ -314,7 +379,7 @@ function App() {
                 >
                   <h4>📅 Mode Random</h4>
                   <div className="ac-input-group">
-                    <label>Mulai</label>
+                    <label>Jam Mulai</label>
                     <input
                       type="time"
                       value={randomSettings.mulai}
@@ -327,7 +392,7 @@ function App() {
                     />
                   </div>
                   <div className="ac-input-group">
-                    <label>Selesai</label>
+                    <label>Jam Selesai</label>
                     <input
                       type="time"
                       value={randomSettings.selesai}
@@ -341,37 +406,43 @@ function App() {
                   </div>
                 </div>
 
-                {/* SETTING THRESHOLD */}
+                {/* Input Threshold (Sesuai keinginan Anda: 90/80) */}
                 <div className="ac-setting-box highlight">
                   <h4>🚀 Batas Atas (%)</h4>
-                  <input
-                    type="number"
-                    value={thresholdSettings.atas}
-                    onChange={(e) =>
-                      setThresholdSettings({
-                        ...thresholdSettings,
-                        atas: e.target.value,
-                      })
-                    }
-                  />
+                  <div className="ac-input-group">
+                    <label>Otomatis Mati</label>
+                    <input
+                      type="number"
+                      value={thresholdSettings.atas}
+                      onChange={(e) =>
+                        setThresholdSettings({
+                          ...thresholdSettings,
+                          atas: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
                 <div className="ac-setting-box highlight">
                   <h4>💧 Batas Bawah (%)</h4>
-                  <input
-                    type="number"
-                    value={thresholdSettings.bawah}
-                    onChange={(e) =>
-                      setThresholdSettings({
-                        ...thresholdSettings,
-                        bawah: e.target.value,
-                      })
-                    }
-                  />
+                  <div className="ac-input-group">
+                    <label>Mulai Mengisi</label>
+                    <input
+                      type="number"
+                      value={thresholdSettings.bawah}
+                      onChange={(e) =>
+                        setThresholdSettings({
+                          ...thresholdSettings,
+                          bawah: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>
             <button className="ac-btn-save-settings" onClick={saveAllSettings}>
-              💾 Simpan Pengaturan
+              💾 Simpan Semua Pengaturan
             </button>
           </div>
         )}
