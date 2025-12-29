@@ -51,8 +51,6 @@ function App() {
 
   const [historyData, setHistoryData] = useState([]);
   const [chartData, setChartData] = useState([]);
-
-  // --- NEW STATES UNTUK CHECKBOX HAPUS ---
   const [selectedItems, setSelectedItems] = useState([]);
 
   const VAPID_KEY =
@@ -148,7 +146,6 @@ function App() {
     });
   }, [requestPermissionAndToken]);
 
-  // --- FUNGSI LOGIKA CHECKBOX & HAPUS ---
   const handleSelectItem = (id) => {
     setSelectedItems((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
@@ -327,14 +324,26 @@ function App() {
               </div>
               <div className="ac-status-info">
                 <p>
-                  Status: <strong>{dataMonitoring.statusIsi}</strong>
+                  Status Pengisian:{" "}
+                  <strong
+                    style={{
+                      color:
+                        dataMonitoring.statusIsi === "Mengisi"
+                          ? "#2196f3"
+                          : "inherit",
+                    }}
+                  >
+                    {dataMonitoring.statusIsi === "Mengisi"
+                      ? "🔄 Sedang Mengisi (Sel II)"
+                      : "✅ Standby"}
+                  </strong>
                 </p>
                 <p>
-                  Mode:{" "}
+                  Mode Sirkulasi:{" "}
                   <span className="ac-active-mode-label">{getModeLabel()}</span>
                 </p>
                 <p>
-                  Sistem:{" "}
+                  Sistem (Sel I):{" "}
                   <strong style={{ color: isMasterOn ? "#28a745" : "#dc3545" }}>
                     {isMasterOn ? "RUNNING" : "STOPPED"}
                   </strong>
@@ -489,7 +498,6 @@ function App() {
           </div>
         )}
 
-        {/* --- HISTORY DENGAN FITUR HAPUS --- */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
@@ -535,20 +543,11 @@ function App() {
                 </div>
               </div>
             </div>
-
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
             >
-              <div
-                className="ac-history-header"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "15px",
-                }}
-              >
+              <div className="ac-history-header">
                 <h3>📜 Riwayat Log</h3>
                 {selectedItems.length > 0 && (
                   <button
@@ -567,7 +566,6 @@ function App() {
                   </button>
                 )}
               </div>
-
               <div className="ac-table-container">
                 <table className="ac-history-table">
                   <thead>
