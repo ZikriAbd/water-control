@@ -20,7 +20,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // States Monitoring - Sinkron dengan folder "monitoring" di JSON
+  // States Monitoring
   const [dataMonitoring, setDataMonitoring] = useState({
     ketinggian: 0,
     flowRate: 0,
@@ -28,7 +28,7 @@ function App() {
     statusIsi: "Standby",
   });
 
-  // States Pengaturan & Kontrol - Sinkron dengan "pengaturan" & "kontrol" di JSON
+  // States Pengaturan & Kontrol
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
@@ -74,7 +74,6 @@ function App() {
       });
     });
 
-    // 1. Ambil Data Monitoring & Grafik
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -101,7 +100,6 @@ function App() {
       }
     });
 
-    // 2. Ambil Riwayat Penggunaan
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
@@ -113,7 +111,6 @@ function App() {
       }
     });
 
-    // 3. Ambil Threshold & Kontrol
     onValue(ref(db, "pengaturan/tandon"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -123,6 +120,7 @@ function App() {
         });
       }
     });
+
     onValue(ref(db, "kontrol/solenoid_1"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -140,7 +138,7 @@ function App() {
     });
   }, [requestPermissionAndToken]);
 
-  // --- LOGIKA SIMPAN & CATAT HISTORY ---
+  // --- FUNGSI SIMPAN DENGAN KETERANGAN DETAIL ---
   const saveAllSettings = () => {
     const vAtas = parseInt(thresholdSettings.atas);
     const vBawah = parseInt(thresholdSettings.bawah);
@@ -149,7 +147,7 @@ function App() {
       return;
     }
 
-    // Simpan Pengaturan ke Firebase
+    // Simpan ke Firebase
     set(ref(db, "pengaturan/tandon"), {
       threshold_atas: vAtas,
       threshold_bawah: vBawah,
@@ -169,21 +167,34 @@ function App() {
       status_relay: isMasterOn,
     });
 
-    // CATAT KE HISTORY SAAT SIMPAN DIKLIK
+    // Rangkai Keterangan Detail untuk History
+    let detailKeterangan = "";
     const modeLabel =
       selectedMode === "C"
         ? "CONTINUE"
         : selectedMode === "P"
         ? "PARTIAL"
         : "RANDOM";
+
+    if (selectedMode === "P") {
+      detailKeterangan = `ON: ${partialSettings.durasi}m, OFF: ${partialSettings.interval}m`;
+    } else if (selectedMode === "R") {
+      detailKeterangan = `Jadwal: ${randomSettings.mulai} - ${randomSettings.selesai}`;
+    } else {
+      detailKeterangan = `Aliran Terus Menerus`;
+    }
+
+    // Tambahkan status master switch ke keterangan
+    const infoSistem = isMasterOn ? "Sistem AKTIF" : "Sistem OFF";
+
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
       mode: `SET: ${modeLabel}`,
-      durasi: `Sistem ${isMasterOn ? "AKTIF" : "OFF"} (Batas ${vAtas}%)`,
+      durasi: `${infoSistem} (${detailKeterangan})`,
       timestamp: serverTimestamp(),
     });
 
-    alert("Pengaturan Berhasil Disimpan & Dicatat!");
+    alert("Pengaturan Berhasil Disimpan!");
   };
 
   const getModeLabel = () => {
@@ -264,7 +275,6 @@ function App() {
           </div>
         </header>
 
-        {/* --- DASHBOARD: Indikator Mode Dinamis --- */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
@@ -308,14 +318,13 @@ function App() {
               </p>
               <hr className="ac-divider-thin" />
               <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                Jl. Raya Pantura No.2, Sukamandi, Kec. Patokbeusi, Kabupaten
-                Subang, Jawa Barat 41263, Indonesia
+                Alamat: Jl. Raya Pantura No.2, Sukamandi, Kec. Patokbeusi,
+                Kabupaten Subang, Jawa Barat 41263, Indonesia
               </p>
             </div>
           </div>
         )}
 
-        {/* --- CONTROLS --- */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
             <div className="ac-master-control-header">
@@ -447,7 +456,6 @@ function App() {
           </div>
         )}
 
-        {/* --- HISTORY: Grafik Tren & Tabel Log --- */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
@@ -515,10 +523,7 @@ function App() {
                           <td>
                             <span
                               className={`ac-badge ${
-                                item.mode.includes("SET") ||
-                                item.mode.includes("AUTO")
-                                  ? "on"
-                                  : "off"
+                                item.mode.includes("SET") ? "on" : "off"
                               }`}
                             >
                               {item.mode}
