@@ -418,6 +418,15 @@ input:checked + .ac-slider:before {
 }
 
 /* --- HISTORY & TABLES --- */
+.selected-row {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+.ac-history-table input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
 .ac-history-header {
   display: flex;
   justify-content: space-between;

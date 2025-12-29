@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "./firebase";
-import { ref, onValue, set, push, serverTimestamp } from "firebase/database";
+import {
+  ref,
+  onValue,
+  set,
+  push,
+  remove,
+  serverTimestamp,
+} from "firebase/database";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import {
   LineChart,
@@ -20,15 +27,13 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // States Monitoring
+  // States Monitoring & Pengaturan
   const [dataMonitoring, setDataMonitoring] = useState({
     ketinggian: 0,
     flowRate: 0,
     totalVolume: 0,
     statusIsi: "Standby",
   });
-
-  // States Pengaturan & Kontrol
   const [thresholdSettings, setThresholdSettings] = useState({
     atas: 90,
     bawah: 30,
@@ -46,6 +51,9 @@ function App() {
 
   const [historyData, setHistoryData] = useState([]);
   const [chartData, setChartData] = useState([]);
+
+  // --- NEW STATES UNTUK CHECKBOX HAPUS ---
+  const [selectedItems, setSelectedItems] = useState([]);
 
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
@@ -108,6 +116,8 @@ function App() {
             .map((k) => ({ id: k, ...data[k] }))
             .reverse()
         );
+      } else {
+        setHistoryData([]);
       }
     });
 
@@ -138,7 +148,39 @@ function App() {
     });
   }, [requestPermissionAndToken]);
 
-  // --- FUNGSI SIMPAN DENGAN KETERANGAN DETAIL ---
+  // --- FUNGSI LOGIKA CHECKBOX & HAPUS ---
+  const handleSelectItem = (id) => {
+    setSelectedItems((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.length === historyData.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(historyData.map((item) => item.id));
+    }
+  };
+
+  const deleteSelectedHistory = async () => {
+    if (selectedItems.length === 0) return;
+    if (
+      window.confirm(`Hapus ${selectedItems.length} data riwayat terpilih?`)
+    ) {
+      try {
+        const deletePromises = selectedItems.map((id) =>
+          remove(ref(db, `history/penggunaan/${id}`))
+        );
+        await Promise.all(deletePromises);
+        setSelectedItems([]);
+        alert("Data berhasil dihapus.");
+      } catch (err) {
+        alert("Gagal menghapus data.");
+      }
+    }
+  };
+
   const saveAllSettings = () => {
     const vAtas = parseInt(thresholdSettings.atas);
     const vBawah = parseInt(thresholdSettings.bawah);
@@ -147,7 +189,6 @@ function App() {
       return;
     }
 
-    // Simpan ke Firebase
     set(ref(db, "pengaturan/tandon"), {
       threshold_atas: vAtas,
       threshold_bawah: vBawah,
@@ -167,33 +208,25 @@ function App() {
       status_relay: isMasterOn,
     });
 
-    // Rangkai Keterangan Detail untuk History
-    let detailKeterangan = "";
     const modeLabel =
       selectedMode === "C"
         ? "CONTINUE"
         : selectedMode === "P"
         ? "PARTIAL"
         : "RANDOM";
-
-    if (selectedMode === "P") {
-      detailKeterangan = `ON: ${partialSettings.durasi}m, OFF: ${partialSettings.interval}m`;
-    } else if (selectedMode === "R") {
-      detailKeterangan = `Jadwal: ${randomSettings.mulai} - ${randomSettings.selesai}`;
-    } else {
-      detailKeterangan = `Aliran Terus Menerus`;
-    }
-
-    // Tambahkan status master switch ke keterangan
-    const infoSistem = isMasterOn ? "Sistem AKTIF" : "Sistem OFF";
+    const detail =
+      selectedMode === "P"
+        ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
+        : selectedMode === "R"
+        ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
+        : "Terus Menerus";
 
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
       mode: `SET: ${modeLabel}`,
-      durasi: `${infoSistem} (${detailKeterangan})`,
+      durasi: `${isMasterOn ? "AKTIF" : "OFF"} (${detail})`,
       timestamp: serverTimestamp(),
     });
-
     alert("Pengaturan Berhasil Disimpan!");
   };
 
@@ -318,8 +351,8 @@ function App() {
               </p>
               <hr className="ac-divider-thin" />
               <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                Alamat: Jl. Raya Pantura No.2, Sukamandi, Kec. Patokbeusi,
-                Kabupaten Subang, Jawa Barat 41263, Indonesia
+                Jl. Raya Pantura No.2, Sukamandi, Kec. Patokbeusi, Kabupaten
+                Subang, Jawa Barat 41263, Indonesia
               </p>
             </div>
           </div>
@@ -456,6 +489,7 @@ function App() {
           </div>
         )}
 
+        {/* --- HISTORY DENGAN FITUR HAPUS --- */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
@@ -501,15 +535,53 @@ function App() {
                 </div>
               </div>
             </div>
+
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
             >
-              <h3>📜 Riwayat Log</h3>
+              <div
+                className="ac-history-header"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "15px",
+                }}
+              >
+                <h3>📜 Riwayat Log</h3>
+                {selectedItems.length > 0 && (
+                  <button
+                    className="ac-btn-delete-multi"
+                    onClick={deleteSelectedHistory}
+                    style={{
+                      backgroundColor: "#dc3545",
+                      color: "white",
+                      border: "none",
+                      padding: "8px 15px",
+                      borderRadius: "5px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    🗑️ Hapus ({selectedItems.length})
+                  </button>
+                )}
+              </div>
+
               <div className="ac-table-container">
                 <table className="ac-history-table">
                   <thead>
                     <tr>
+                      <th style={{ width: "40px" }}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            historyData.length > 0 &&
+                            selectedItems.length === historyData.length
+                          }
+                          onChange={handleSelectAll}
+                        />
+                      </th>
                       <th>Waktu</th>
                       <th>Mode</th>
                       <th>Keterangan</th>
@@ -518,7 +590,21 @@ function App() {
                   <tbody>
                     {historyData.length > 0 ? (
                       historyData.map((item) => (
-                        <tr key={item.id}>
+                        <tr
+                          key={item.id}
+                          className={
+                            selectedItems.includes(item.id)
+                              ? "selected-row"
+                              : ""
+                          }
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.includes(item.id)}
+                              onChange={() => handleSelectItem(item.id)}
+                            />
+                          </td>
                           <td>{item.tanggal}</td>
                           <td>
                             <span
@@ -534,7 +620,7 @@ function App() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="3" style={{ textAlign: "center" }}>
+                        <td colSpan="4" style={{ textAlign: "center" }}>
                           Belum ada log.
                         </td>
                       </tr>
