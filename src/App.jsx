@@ -33,6 +33,12 @@ function App() {
     statusIsi: "Standby",
   });
 
+  // --- STATE BARU UNTUK THRESHOLD ---
+  const [thresholdSettings, setThresholdSettings] = useState({
+    atas: 90,
+    bawah: 30,
+  });
+
   const [currentMode, setCurrentMode] = useState("C");
   const [selectedMode, setSelectedMode] = useState("C");
   const [isMasterOn, setIsMasterOn] = useState(true);
@@ -86,6 +92,17 @@ function App() {
       }
     });
 
+    // --- LISTENER UNTUK PENGATURAN THRESHOLD ---
+    onValue(ref(db, "pengaturan/tandon"), (snap) => {
+      if (snap.exists()) {
+        const val = snap.val();
+        setThresholdSettings({
+          atas: val.threshold_atas || 90,
+          bawah: val.threshold_bawah || 30,
+        });
+      }
+    });
+
     onValue(ref(db, "kontrol/solenoid_1/master_switch"), (snap) => {
       if (snap.exists()) setIsMasterOn(snap.val());
     });
@@ -134,24 +151,24 @@ function App() {
     });
   }, []);
 
-  // --- AUTO-OFF PROTEKSI ---
+  // --- AUTO-OFF PROTEKSI (Threshold Dinamis) ---
   useEffect(() => {
-    if (dataMonitoring.ketinggian >= 95 && isMasterOn) {
+    if (dataMonitoring.ketinggian >= thresholdSettings.atas && isMasterOn) {
       set(ref(db, "kontrol/solenoid_1/master_switch"), false);
       if (Notification.permission === "granted") {
         new Notification("⚠️ Aqua Control: AUTO-OFF!", {
-          body: "Tandon penuh (95%). Sistem dimatikan otomatis.",
+          body: `Tandon mencapai batas aman (${thresholdSettings.atas}%). Sistem dimatikan otomatis.`,
           icon: "/favicon.ico",
         });
       }
-      push(ref(db, "history/penggunaan"), {
+      push(ref(ref(db, "history/penggunaan")), {
         tanggal: new Date().toLocaleString("id-ID"),
         mode: "AUTO-OFF",
-        durasi: "Proteksi Tandon Penuh",
+        durasi: `Proteksi Batas Atas ${thresholdSettings.atas}%`,
         timestamp: serverTimestamp(),
       });
     }
-  }, [dataMonitoring.ketinggian, isMasterOn]);
+  }, [dataMonitoring.ketinggian, isMasterOn, thresholdSettings.atas]);
 
   const requestNotification = () => {
     Notification.requestPermission().then((p) => {
@@ -174,9 +191,17 @@ function App() {
     }
   };
 
-  // --- FUNGSI SIMPAN DENGAN KETERANGAN DETAIL ---
+  // --- FUNGSI SIMPAN DENGAN UPDATE THRESHOLD ---
   const saveAllSettings = () => {
-    // 1. Update Database Utama
+    // Validasi sederhana agar batas bawah tidak melebihi batas atas
+    if (thresholdSettings.bawah >= thresholdSettings.atas) {
+      alert(
+        "Error: Batas Bawah tidak boleh lebih besar atau sama dengan Batas Atas!"
+      );
+      return;
+    }
+
+    // 1. Update Database Utama (Termasuk Threshold)
     set(ref(db, "kontrol/solenoid_1/mode_aktif"), selectedMode);
     set(ref(db, "kontrol/solenoid_1/master_switch"), isMasterOn);
     set(ref(db, "kontrol/solenoid_1/set_partial"), {
@@ -186,6 +211,13 @@ function App() {
     set(ref(db, "kontrol/solenoid_1/set_random"), {
       jam_mulai: randomSettings.mulai,
       jam_selesai: randomSettings.selesai,
+    });
+
+    // Simpan Threshold Tandon
+    set(ref(db, "pengaturan/tandon"), {
+      threshold_atas: parseInt(thresholdSettings.atas),
+      threshold_bawah: parseInt(thresholdSettings.bawah),
+      max_safety_limit: 140, // Nilai default safety sesuai struktur awal
     });
 
     // 2. Tentukan Keterangan Detail untuk History
@@ -216,7 +248,7 @@ function App() {
       mode: modeLabel,
       durasi: detailKeterangan,
       timestamp: serverTimestamp(),
-    }).then(() => alert("Pengaturan Berhasil Disimpan!"));
+    }).then(() => alert("Semua Pengaturan Berhasil Disimpan!"));
   };
 
   return (
@@ -301,7 +333,9 @@ function App() {
               <div className="ac-water-tank">
                 <div
                   className={`ac-water-level ${
-                    dataMonitoring.ketinggian >= 90 ? "critical" : ""
+                    dataMonitoring.ketinggian >= thresholdSettings.atas
+                      ? "critical"
+                      : ""
                   }`}
                   style={{ height: `${dataMonitoring.ketinggian}%` }}
                 ></div>
@@ -436,6 +470,53 @@ function App() {
                           setRandomSettings({
                             ...randomSettings,
                             selesai: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* --- INPUT BARU UNTUK THRESHOLD TANDON --- */}
+                <hr
+                  className="ac-divider"
+                  style={{ margin: "30px 0", borderColor: "#ddd" }}
+                />
+                <h3 style={{ textAlign: "left", marginBottom: "15px" }}>
+                  Batas Level Tandon (%)
+                </h3>
+                <div className="ac-settings-grid">
+                  <div
+                    className="ac-setting-box highlight"
+                    style={{ opacity: 1 }}
+                  >
+                    <div className="ac-input-group">
+                      <label>Batas Atas (Mati Otomatis)</label>
+                      <input
+                        type="number"
+                        value={thresholdSettings.atas}
+                        onChange={(e) =>
+                          setThresholdSettings({
+                            ...thresholdSettings,
+                            atas: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div
+                    className="ac-setting-box highlight"
+                    style={{ opacity: 1 }}
+                  >
+                    <div className="ac-input-group">
+                      <label>Batas Bawah (Mulai Isi)</label>
+                      <input
+                        type="number"
+                        value={thresholdSettings.bawah}
+                        onChange={(e) =>
+                          setThresholdSettings({
+                            ...thresholdSettings,
+                            bawah: e.target.value,
                           })
                         }
                       />
