@@ -324,7 +324,7 @@ function App() {
               </div>
               <div className="ac-status-info">
                 <p>
-                  Status Pengisian:{" "}
+                  Status Pengisian kolam:{" "}
                   <strong
                     style={{
                       color:
@@ -343,7 +343,7 @@ function App() {
                   <span className="ac-active-mode-label">{getModeLabel()}</span>
                 </p>
                 <p>
-                  Sistem (Sel I):{" "}
+                  Status pengisian tandon:{" "}
                   <strong style={{ color: isMasterOn ? "#28a745" : "#dc3545" }}>
                     {isMasterOn ? "RUNNING" : "STOPPED"}
                   </strong>
