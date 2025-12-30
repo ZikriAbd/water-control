@@ -230,7 +230,7 @@ function App() {
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
       mode: modeLabel, // Jika saklar OFF, hanya tampil "OFF"
-      durasi: `${isMasterOn ? "AKTIF" : "SISTEM BERHENTI"} `, //(${detail})
+      durasi: `${isMasterOn ? "AKTIF" : "SISTEM BERHENTI"} (${detail})`, //
       timestamp: serverTimestamp(),
     });
     alert("Pengaturan Berhasil Disimpan!");
