@@ -56,6 +56,7 @@ function App() {
   const VAPID_KEY =
     "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
 
+  // Inisialisasi Notifikasi
   const requestPermissionAndToken = useCallback(async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -80,6 +81,7 @@ function App() {
       });
     });
 
+    // Ambil Data Monitoring
     onValue(ref(db, "monitoring"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -106,6 +108,7 @@ function App() {
       }
     });
 
+    // Ambil Data Riwayat
     onValue(ref(db, "history/penggunaan"), (snap) => {
       if (snap.exists()) {
         const data = snap.val();
@@ -119,6 +122,7 @@ function App() {
       }
     });
 
+    // Ambil Pengaturan Tandon
     onValue(ref(db, "pengaturan/tandon"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -129,6 +133,7 @@ function App() {
       }
     });
 
+    // Ambil Status Kontrol Solenoid I
     onValue(ref(db, "kontrol/solenoid_1"), (snap) => {
       if (snap.exists()) {
         const val = snap.val();
@@ -178,6 +183,7 @@ function App() {
     }
   };
 
+  // FUNGSI SIMPAN DENGAN LOGIKA PERBAIKAN "OFF"
   const saveAllSettings = () => {
     const vAtas = parseInt(thresholdSettings.atas);
     const vBawah = parseInt(thresholdSettings.bawah);
@@ -205,12 +211,15 @@ function App() {
       status_relay: isMasterOn,
     });
 
-    const modeLabel =
-      selectedMode === "C"
-        ? "CONTINUE"
-        : selectedMode === "P"
-        ? "PARTIAL"
-        : "RANDOM";
+    // Logika penulisan kolom mode di History
+    const modeLabel = !isMasterOn
+      ? "OFF"
+      : selectedMode === "C"
+      ? "SET: CONTINUE"
+      : selectedMode === "P"
+      ? "SET: PARTIAL"
+      : "SET: RANDOM";
+
     const detail =
       selectedMode === "P"
         ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
@@ -220,8 +229,8 @@ function App() {
 
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
-      mode: `SET: ${modeLabel}`,
-      durasi: `${isMasterOn ? "AKTIF" : "OFF"} (${detail})`,
+      mode: modeLabel, // Jika saklar OFF, hanya tampil "OFF"
+      durasi: `${isMasterOn ? "AKTIF" : "SISTEM BERHENTI"} (${detail})`,
       timestamp: serverTimestamp(),
     });
     alert("Pengaturan Berhasil Disimpan!");
@@ -245,6 +254,7 @@ function App() {
         <span></span>
       </div>
 
+      {/* Sidebar Navigation */}
       <aside className={`ac-sidebar ${isMenuOpen ? "open" : ""}`}>
         <div className="ac-sidebar-header">
           <h2>AquaControl</h2>
@@ -305,6 +315,7 @@ function App() {
           </div>
         </header>
 
+        {/* DASHBOARD PAGE */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
@@ -324,7 +335,7 @@ function App() {
               </div>
               <div className="ac-status-info">
                 <p>
-                  Status Pengisian Tandon:{" "}
+                  Status Pengisian Tandon:
                   <strong
                     style={{
                       color:
@@ -334,14 +345,14 @@ function App() {
                     }}
                   >
                     {dataMonitoring.statusIsi === "Mengisi"
-                      ? "🔄 Sedang Mengisi (Sel II)"
-                      : "✅ Standby"}
+                      ? " 🔄 Sedang Mengisi (Sel II)"
+                      : " ✅ Standby"}
                   </strong>
                 </p>
                 <p>
-                  Status pengisian Kolam:{" "}
+                  Status pengisian Kolam:
                   <strong style={{ color: isMasterOn ? "#28a745" : "#dc3545" }}>
-                    {isMasterOn ? "RUNNING" : "STOPPED"}
+                    {isMasterOn ? " RUNNING" : " STOPPED"}
                   </strong>
                 </p>
                 <p>
@@ -360,13 +371,13 @@ function App() {
               </p>
               <hr className="ac-divider-thin" />
               <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                Jl. Raya Pantura No.2, Sukamandi, Kec. Patokbeusi, Kabupaten
-                Subang, Jawa Barat 41263, Indonesia
+                Sukamandi, Subang, Jawa Barat 41263
               </p>
             </div>
           </div>
         )}
 
+        {/* CONTROLS PAGE */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
             <div className="ac-master-control-header">
@@ -498,11 +509,12 @@ function App() {
           </div>
         )}
 
+        {/* HISTORY PAGE */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
               <div className="ac-card">
-                <h3>📈 Grafik Laju Aliran</h3>
+                <h3>📈 Laju Aliran</h3>
                 <div style={{ width: "100%", height: "200px" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
@@ -523,7 +535,7 @@ function App() {
                 </div>
               </div>
               <div className="ac-card">
-                <h3>💧 Grafik Penggunaan</h3>
+                <h3>💧 Total Volume</h3>
                 <div style={{ width: "100%", height: "200px" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
@@ -556,10 +568,10 @@ function App() {
                     style={{
                       backgroundColor: "#dc3545",
                       color: "white",
-                      border: "none",
                       padding: "8px 15px",
                       borderRadius: "5px",
                       cursor: "pointer",
+                      border: "none",
                     }}
                   >
                     🗑️ Hapus ({selectedItems.length})
@@ -607,7 +619,7 @@ function App() {
                           <td>
                             <span
                               className={`ac-badge ${
-                                item.mode.includes("SET") ? "on" : "off"
+                                item.mode === "OFF" ? "off" : "on"
                               }`}
                             >
                               {item.mode}
