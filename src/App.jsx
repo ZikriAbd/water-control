@@ -215,22 +215,22 @@ function App() {
     const modeLabel = !isMasterOn
       ? "OFF"
       : selectedMode === "C"
-      ? "SET: CONTINUE"
+      ? "CONTINUE"
       : selectedMode === "P"
-      ? "SET: PARTIAL"
-      : "SET: RANDOM";
+      ? "PARTIAL"
+      : "RANDOM";
 
     const detail =
       selectedMode === "P"
         ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
         : selectedMode === "R"
-        ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
+        ? `Jadwal: ${randomSettings.mulai} - ${randomSettings.selesai}`
         : "Terus Menerus";
 
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
       mode: modeLabel, // Jika saklar OFF, hanya tampil "OFF"
-      durasi: `${isMasterOn ? "AKTIF" : "SISTEM BERHENTI"} (${detail})`,
+      durasi: `${isMasterOn ? "AKTIF" : "SISTEM BERHENTI"} `, //(${detail})
       timestamp: serverTimestamp(),
     });
     alert("Pengaturan Berhasil Disimpan!");
