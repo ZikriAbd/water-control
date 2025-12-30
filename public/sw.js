@@ -61,11 +61,11 @@ define(["./workbox-8c29f6e4"], function (e) {
 
   // 3. Konfigurasi Firebase Messaging (Ganti dengan Config Firebase Anda)
   firebase.initializeApp({
-    apiKey: "AIzaSy...",
-    authDomain: "project-anda.firebaseapp.com",
-    projectId: "project-anda",
-    messagingSenderId: "1234567890",
-    appId: "1:1234567890:web:abc123",
+    apiKey: "AIzaSyDdn0UcHek6pdZjJgvhL_r7hbFtiq_R8QM",
+    authDomain: "flow-iot-1.firebaseapp.com",
+    projectId: "flow-iot-1",
+    messagingSenderId: "1016161486914",
+    appId: "1:1016161486914:web:00290bf017cfc022fe85db",
   });
 
   const messaging = firebase.messaging();
