@@ -211,7 +211,7 @@ function App() {
       status_relay: isMasterOn,
     });
 
-    // Logika penulisan kolom mode di History
+    // Logika penulisan label Mode
     const modeLabel = !isMasterOn
       ? "OFF"
       : selectedMode === "C"
@@ -220,22 +220,23 @@ function App() {
       ? "PARTIAL"
       : "RANDOM";
 
-    const detail =
-      selectedMode === "P"
-        ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
-        : selectedMode === "R"
-        ? `Jadwal: ${randomSettings.mulai} - ${randomSettings.selesai}`
-        : "Terus Menerus";
+    // Logika penulisan Keterangan (Durasi)
+    const detailLog = !isMasterOn
+      ? "SISTEM BERHENTI" // Jika OFF, keterangan langsung "SISTEM BERHENTI"
+      : selectedMode === "P"
+      ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
+      : selectedMode === "R"
+      ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
+      : "Terus Menerus";
 
     push(ref(db, "history/penggunaan"), {
       tanggal: new Date().toLocaleString("id-ID"),
-      mode: modeLabel, // Jika saklar OFF, hanya tampil "OFF"
-      durasi: `${isMasterOn ? "AKTIF" : "SISTEM BERHENTI"} (${detail})`, //
+      mode: modeLabel,
+      durasi: detailLog, // Menggunakan variabel detailLog yang sudah diringkas
       timestamp: serverTimestamp(),
     });
     alert("Pengaturan Berhasil Disimpan!");
   };
-
   const getModeLabel = () => {
     if (selectedMode === "C") return "CONTINUE";
     if (selectedMode === "P") return "PARTIAL";
