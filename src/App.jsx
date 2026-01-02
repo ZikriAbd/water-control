@@ -1012,6 +1012,22 @@ function App() {
     }
   };
 
+  useEffect(() => {
+  // Cek service worker registration
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration()
+      .then(registration => {
+        console.log('SW Registration:', registration);
+        if (!registration) {
+          console.error('Service Worker belum terdaftar!');
+        }
+      });
+  }
+
+  // Cek notification permission
+  console.log('Notification permission:', Notification.permission);
+}, []);
+
   const getModeLabel = () => {
     if (!isMasterOn) return "OFF";
     if (selectedMode === "C") return "CONTINUE";

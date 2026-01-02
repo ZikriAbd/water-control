@@ -102,15 +102,15 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // Handle background messages
+// Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log(
-    "[firebase-messaging-sw.js] Received background message:",
-    payload
-  );
+  console.log("[SW] Full payload:", JSON.stringify(payload, null, 2));
+  console.log("[SW] payload.notification:", payload.notification);
+  console.log("[SW] payload.data:", payload.data);
 
-  const notificationTitle = payload.notification?.title || "AquaControl";
+  const notificationTitle = payload.notification?.title || payload.data?.title || "AquaControl";
   const notificationOptions = {
-    body: payload.notification?.body || "Notifikasi baru",
+    body: payload.notification?.body || payload.data?.body || "Notifikasi baru",
     icon: payload.notification?.icon || "/logo192.png",
     badge: "/logo192.png",
     vibrate: [200, 100, 200],
@@ -122,6 +122,9 @@ messaging.onBackgroundMessage((payload) => {
     },
   };
 
+  console.log("[SW] Showing notification:", notificationTitle);
+
+  // PENTING: Harus return Promise!
   return self.registration.showNotification(
     notificationTitle,
     notificationOptions
