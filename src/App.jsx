@@ -777,7 +777,6 @@ function App() {
     }
   }, []);
 
-  // Ubah useEffect untuk inisialisasi - tambahkan pengecekan permission awal
   useEffect(() => {
     // Cek permission dan token yang tersimpan saat mount
     const checkNotificationStatus = async () => {
@@ -807,30 +806,6 @@ function App() {
       const unsubscribe = onMessage(messaging, (payload) => {
         console.log("Pesan foreground:", payload);
 
-        if (Notification.permission === "granted") {
-          new Notification(payload.notification?.title || "AquaControl", {
-            body: payload.notification?.body || "Notifikasi baru",
-            icon: payload.notification?.icon || "/logo192.png",
-            badge: "/logo192.png",
-          });
-        }
-      });
-
-      return () => unsubscribe();
-    }
-  }, [requestPermissionAndToken]);
-
-  // Setup listeners
-  useEffect(() => {
-    // Inisialisasi notifikasi
-    requestPermissionAndToken();
-
-    // Listen untuk foreground messages
-    if (messaging) {
-      const unsubscribe = onMessage(messaging, (payload) => {
-        console.log("Pesan foreground:", payload);
-
-        // Tampilkan notifikasi manual untuk foreground
         if (Notification.permission === "granted") {
           new Notification(payload.notification?.title || "AquaControl", {
             body: payload.notification?.body || "Notifikasi baru",
