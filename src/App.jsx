@@ -95,6 +95,11 @@ function App() {
       const cooldownPeriod = 5 * 60 * 1000; // 5 menit cooldown
       const timeSinceLastNotif = now - lastNotificationRef.current.timestamp;
 
+      sendBrowserNotification(
+            "⚠️ PERINGATAN LEVEL AIR TINGGI!",
+            `Level air tandon mencapai ${ketinggian}% (Batas Atas: ${thresholdAtas}%)`
+          );
+
       // CEK BATAS ATAS
       if (ketinggian >= thresholdAtas) {
         if (
