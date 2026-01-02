@@ -1147,7 +1147,7 @@ function App() {
                   : "Aktifkan Notifikasi"
               }
             >
-              {fcmToken ? "🔔" : "🔕"}
+              {notificationStatus === "granted" ? "🔔" : "🔕"}
             </button>
             <span className="ac-status-online">● Online</span>
           </div>
