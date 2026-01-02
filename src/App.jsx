@@ -677,6 +677,7 @@ function App() {
   const [activePage, setActivePage] = useState("dashboard");
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [fcmToken, setFcmToken] = useState(null);
 
   // States Monitoring & Pengaturan
   const [dataMonitoring, setDataMonitoring] = useState({
@@ -717,11 +718,26 @@ function App() {
     }
 
     try {
-      // Cek apakah sudah granted
+      // Cek apakah sudah ada token tersimpan di localStorage
+      const savedToken = localStorage.getItem("fcmToken");
+
+      if (savedToken) {
+        console.log("Menggunakan FCM Token tersimpan:", savedToken);
+        setFcmToken(savedToken);
+        setNotificationStatus("granted");
+        // Pastikan token masih tersimpan di Firebase
+        await set(ref(db, "tokens/admin"), savedToken);
+        return savedToken;
+      }
+
+      // Cek permission saat ini
       if (Notification.permission === "granted") {
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
         if (currentToken) {
-          console.log("FCM Token:", currentToken);
+          console.log("FCM Token baru:", currentToken);
+          // Simpan token ke localStorage
+          localStorage.setItem("fcmToken", currentToken);
+          setFcmToken(currentToken);
           await set(ref(db, "tokens/admin"), currentToken);
           setNotificationStatus("granted");
           return currentToken;
@@ -734,7 +750,10 @@ function App() {
       if (permission === "granted") {
         const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
         if (currentToken) {
-          console.log("FCM Token:", currentToken);
+          console.log("FCM Token baru setelah request:", currentToken);
+          // Simpan token ke localStorage
+          localStorage.setItem("fcmToken", currentToken);
+          setFcmToken(currentToken);
           await set(ref(db, "tokens/admin"), currentToken);
           setNotificationStatus("granted");
           return currentToken;
@@ -750,7 +769,6 @@ function App() {
       console.error("Error FCM:", err);
       setNotificationStatus("error");
 
-      // Tampilkan error yang lebih spesifik
       if (err.code === "messaging/permission-blocked") {
         alert(
           "Izin notifikasi diblokir. Silakan aktifkan di pengaturan browser."
@@ -758,6 +776,49 @@ function App() {
       }
     }
   }, []);
+
+  // Ubah useEffect untuk inisialisasi - tambahkan pengecekan permission awal
+  useEffect(() => {
+    // Cek permission dan token yang tersimpan saat mount
+    const checkNotificationStatus = async () => {
+      const savedToken = localStorage.getItem("fcmToken");
+
+      if (Notification.permission === "granted" && savedToken) {
+        setNotificationStatus("granted");
+        setFcmToken(savedToken);
+        console.log("Status notifikasi: Aktif dengan token tersimpan");
+      } else if (Notification.permission === "denied") {
+        setNotificationStatus("denied");
+      } else {
+        setNotificationStatus("checking");
+      }
+    };
+
+    checkNotificationStatus();
+
+    // Inisialisasi notifikasi hanya jika belum ada token
+    const savedToken = localStorage.getItem("fcmToken");
+    if (!savedToken) {
+      requestPermissionAndToken();
+    }
+
+    // Listen untuk foreground messages
+    if (messaging) {
+      const unsubscribe = onMessage(messaging, (payload) => {
+        console.log("Pesan foreground:", payload);
+
+        if (Notification.permission === "granted") {
+          new Notification(payload.notification?.title || "AquaControl", {
+            body: payload.notification?.body || "Notifikasi baru",
+            icon: payload.notification?.icon || "/logo192.png",
+            badge: "/logo192.png",
+          });
+        }
+      });
+
+      return () => unsubscribe();
+    }
+  }, [requestPermissionAndToken]);
 
   // Setup listeners
   useEffect(() => {
@@ -1013,20 +1074,19 @@ function App() {
   };
 
   useEffect(() => {
-  // Cek service worker registration
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration()
-      .then(registration => {
-        console.log('SW Registration:', registration);
+    // Cek service worker registration
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistration().then((registration) => {
+        console.log("SW Registration:", registration);
         if (!registration) {
-          console.error('Service Worker belum terdaftar!');
+          console.error("Service Worker belum terdaftar!");
         }
       });
-  }
+    }
 
-  // Cek notification permission
-  console.log('Notification permission:', Notification.permission);
-}, []);
+    // Cek notification permission
+    console.log("Notification permission:", Notification.permission);
+  }, []);
 
   const getModeLabel = () => {
     if (!isMasterOn) return "OFF";
