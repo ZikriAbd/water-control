@@ -138,13 +138,6 @@
   align-items: center;
 }
 
-.ac-noti-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 1.2rem;
-}
-
 .ac-status-online {
   color: var(--success);
   font-size: 0.85rem;
@@ -421,6 +414,7 @@ input:checked + .ac-slider:before {
 .selected-row {
   background-color: rgba(0, 123, 255, 0.05);
 }
+
 .ac-history-table input[type="checkbox"] {
   cursor: pointer;
   width: 18px;
@@ -492,21 +486,64 @@ input:checked + .ac-slider:before {
   font-weight: bold;
 }
 
+.ac-badge.on {
+  background: #e3f2fd;
+  color: #1e88e5;
+}
+
+.ac-badge.off {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
 .ac-badge.Continue {
   background: #e3f2fd;
   color: #1e88e5;
 }
+
 .ac-badge.Partial {
   background: #fff8e1;
   color: #fbc02d;
 }
+
 .ac-badge.Random {
   background: #f3e5f5;
   color: #8e24aa;
 }
+
 .ac-badge.AUTO-OFF {
   background: #fee2e2;
   color: #ef4444;
+}
+
+.ac-active-mode-label {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: bold;
+  font-size: 0.85rem;
+  background: var(--secondary);
+  color: white;
+}
+
+.ac-status-info {
+  text-align: left;
+  margin-top: 20px;
+  font-size: 0.9rem;
+}
+
+.ac-status-info p {
+  margin-bottom: 8px;
+}
+
+.ac-divider-thin {
+  border: 0;
+  border-top: 1px solid #ddd;
+  margin: 15px 0;
+}
+
+.dark-theme .ac-divider-thin {
+  border-top-color: #444;
 }
 
 /* --- RESPONSIVE DESIGN --- */
@@ -559,75 +596,5 @@ input:checked + .ac-slider:before {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-// 9. TAMBAHKAN CSS di App.css
-.ac-alert-container {
-  margin-bottom: 20px;
-}
-
-.ac-alert {
-  padding: 15px;
-  margin-bottom: 10px;
-  border-radius: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  animation: slideIn 0.3s ease-out;
-}
-
-.ac-alert-danger {
-  background-color: #dc3545;
-  color: white;
-}
-
-.ac-alert-warning {
-  background-color: #ffc107;
-  color: #000;
-}
-
-.ac-alert-success {
-  background-color: #28a745;
-  color: white;
-}
-
-.ac-alert-info {
-  background-color: #17a2b8;
-  color: white;
-}
-
-.ac-alert-message {
-  font-weight: 600;
-  margin: 0;
-}
-
-.ac-alert-time {
-  opacity: 0.8;
-  font-size: 0.8rem;
-}
-
-.ac-alert-close {
-  background: rgba(0, 0, 0, 0.2);
-  border: none;
-  color: inherit;
-  padding: 5px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-left: 15px;
-}
-
-.ac-alert-close:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
   }
 }

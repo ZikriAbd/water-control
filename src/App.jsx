@@ -1,7 +1,5 @@
-// export default App;
-
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { db, messaging } from "./firebase";
+import React, { useState, useEffect, useCallback } from "react";
+import { db } from "./firebase";
 import {
   ref,
   onValue,
@@ -10,7 +8,6 @@ import {
   remove,
   serverTimestamp,
 } from "firebase/database";
-import { getToken, onMessage } from "firebase/messaging";
 import {
   LineChart,
   Line,
@@ -28,8 +25,6 @@ function App() {
   const [activePage, setActivePage] = useState("dashboard");
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [fcmToken, setFcmToken] = useState(null);
-  const [alerts, setAlerts] = useState([]);
 
   // States Monitoring & Pengaturan
   const [dataMonitoring, setDataMonitoring] = useState({
@@ -56,185 +51,8 @@ function App() {
   const [historyData, setHistoryData] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [notificationStatus, setNotificationStatus] = useState("checking");
 
-  // Ref untuk tracking notifikasi yang sudah dikirim
-  const lastNotificationRef = useRef({
-    batasAtas: false,
-    batasBawah: false, // TAMBAHAN BARU
-    timestamp: 0,
-  });
-
-  const VAPID_KEY =
-    "BMAr4XkoS8aFdSKqEfjxiKGeMRr_EwqzdfxJ77CsanfFqe6YvB6BgW4CDMJNumSqqQCbox-UNzQFrIucnhqk3fk";
-
-  // Fungsi untuk mengirim notifikasi lokal
-  const sendLocalNotification = useCallback((title, body, tag) => {
-    if (Notification.permission === "granted") {
-      try {
-        new Notification(title, {
-          body: body,
-          icon: "/logo192.png",
-          badge: "/logo192.png",
-          tag: tag, // Mencegah duplikasi notifikasi dengan tag yang sama
-          requireInteraction: true, // Notifikasi tetap muncul sampai user menutup
-        });
-        console.log("Notifikasi lokal dikirim:", title);
-      } catch (error) {
-        console.error("Error mengirim notifikasi lokal:", error);
-      }
-    }
-  }, []);
-
-  // Fungsi untuk cek dan kirim notifikasi batas atas
-  // 5. UPDATE FUNGSI checkAndNotifyThreshold - Tambah parameter thresholdBawah dan cek batas bawah
-  const checkAndNotifyThreshold = useCallback(
-    (ketinggian, thresholdAtas, thresholdBawah) => {
-      // TAMBAH parameter thresholdBawah
-      const now = Date.now();
-      const cooldownPeriod = 5 * 60 * 1000; // 5 menit cooldown
-      const timeSinceLastNotif = now - lastNotificationRef.current.timestamp;
-
-      sendBrowserNotification(
-            "⚠️ PERINGATAN LEVEL AIR TINGGI!",
-            `Level air tandon mencapai ${ketinggian}% (Batas Atas: ${thresholdAtas}%)`
-          );
-
-      // CEK BATAS ATAS
-      if (ketinggian >= thresholdAtas) {
-        if (
-          !lastNotificationRef.current.batasAtas ||
-          timeSinceLastNotif > cooldownPeriod
-        ) {
-          // Kirim notifikasi browser
-          sendBrowserNotification(
-            "⚠️ PERINGATAN LEVEL AIR TINGGI!",
-            `Level air tandon mencapai ${ketinggian}% (Batas Atas: ${thresholdAtas}%)`
-          );
-
-          // Tampilkan alert di UI
-          showAlert(
-            "danger",
-            `⚠️ Level air mencapai ${ketinggian}% - BATAS ATAS (${thresholdAtas}%)`
-          );
-
-          // Update ref
-          lastNotificationRef.current = {
-            ...lastNotificationRef.current,
-            batasAtas: true,
-            timestamp: now,
-          };
-
-          console.log(
-            `🚨 Notifikasi batas atas: ${ketinggian}% >= ${thresholdAtas}%`
-          );
-        }
-      } else {
-        // Reset flag jika turun di bawah batas atas
-        if (lastNotificationRef.current.batasAtas) {
-          lastNotificationRef.current.batasAtas = false;
-          showAlert("success", `✅ Level air kembali normal (${ketinggian}%)`);
-          console.log("✅ Level air kembali normal");
-        }
-      }
-
-      // CEK BATAS BAWAH - BAGIAN BARU
-      if (ketinggian <= thresholdBawah) {
-        if (
-          !lastNotificationRef.current.batasBawah ||
-          timeSinceLastNotif > cooldownPeriod
-        ) {
-          sendBrowserNotification(
-            "⚠️ PERINGATAN LEVEL AIR RENDAH!",
-            `Level air tandon turun ke ${ketinggian}% (Batas Bawah: ${thresholdBawah}%)`
-          );
-
-          showAlert(
-            "warning",
-            `⚠️ Level air turun ke ${ketinggian}% - BATAS BAWAH (${thresholdBawah}%)`
-          );
-
-          lastNotificationRef.current = {
-            ...lastNotificationRef.current,
-            batasBawah: true,
-            timestamp: now,
-          };
-
-          console.log(
-            `🚨 Notifikasi batas bawah: ${ketinggian}% <= ${thresholdBawah}%`
-          );
-        }
-      } else {
-        if (lastNotificationRef.current.batasBawah) {
-          lastNotificationRef.current.batasBawah = false;
-        }
-      }
-    },
-    [sendBrowserNotification, showAlert] // TAMBAH dependencies
-  );
-
-  // Inisialisasi Notifikasi
-  const requestPermissionAndToken = useCallback(async () => {
-    if (!messaging) {
-      console.warn("Firebase Messaging tidak didukung di browser ini");
-      setNotificationStatus("unsupported");
-      return;
-    }
-
-    try {
-      const savedToken = localStorage.getItem("fcmToken");
-
-      if (savedToken) {
-        console.log("Menggunakan FCM Token tersimpan:", savedToken);
-        setFcmToken(savedToken);
-        setNotificationStatus("granted");
-        await set(ref(db, "tokens/admin"), savedToken);
-        return savedToken;
-      }
-
-      if (Notification.permission === "granted") {
-        const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
-        if (currentToken) {
-          console.log("FCM Token baru:", currentToken);
-          localStorage.setItem("fcmToken", currentToken);
-          setFcmToken(currentToken);
-          await set(ref(db, "tokens/admin"), currentToken);
-          setNotificationStatus("granted");
-          return currentToken;
-        }
-      }
-
-      const permission = await Notification.requestPermission();
-
-      if (permission === "granted") {
-        const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
-        if (currentToken) {
-          console.log("FCM Token baru setelah request:", currentToken);
-          localStorage.setItem("fcmToken", currentToken);
-          setFcmToken(currentToken);
-          await set(ref(db, "tokens/admin"), currentToken);
-          setNotificationStatus("granted");
-          return currentToken;
-        } else {
-          console.warn("Tidak dapat mendapatkan FCM token");
-          setNotificationStatus("denied");
-        }
-      } else {
-        console.log("Notifikasi ditolak");
-        setNotificationStatus("denied");
-      }
-    } catch (err) {
-      console.error("Error FCM:", err);
-      setNotificationStatus("error");
-
-      if (err.code === "messaging/permission-blocked") {
-        alert(
-          "Izin notifikasi diblokir. Silakan aktifkan di pengaturan browser."
-        );
-      }
-    }
-  }, []);
-
+  // Ambil Data Monitoring
   useEffect(() => {
     const monitoringRef = ref(db, "monitoring");
     const unsubscribe = onValue(
@@ -250,13 +68,6 @@ function App() {
             flowRate: val.kolam?.laju_aliran_mls || 0,
             totalVolume: val.kolam?.total_aliran_ml || 0,
           });
-
-          // UPDATE: Cek threshold dengan 3 parameter
-          checkAndNotifyThreshold(
-            ketinggianBaru,
-            thresholdSettings.atas,
-            thresholdSettings.bawah // TAMBAHAN BARU
-          );
 
           setChartData((prev) => {
             const newData = [
@@ -281,56 +92,7 @@ function App() {
     );
 
     return () => unsubscribe();
-  }, [
-    thresholdSettings.atas,
-    thresholdSettings.bawah,
-    checkAndNotifyThreshold,
-  ]); // TAMBAH dependencies
-
-  // Ambil Data Monitoring + Cek Threshold
-  useEffect(() => {
-    const monitoringRef = ref(db, "monitoring");
-    const unsubscribe = onValue(
-      monitoringRef,
-      (snap) => {
-        if (snap.exists()) {
-          const val = snap.val();
-          const ketinggianBaru = val.tandon?.ketinggian_cm || 0;
-
-          setDataMonitoring({
-            ketinggian: ketinggianBaru,
-            statusIsi: val.tandon?.status_isi || "Standby",
-            flowRate: val.kolam?.laju_aliran_mls || 0,
-            totalVolume: val.kolam?.total_aliran_ml || 0,
-          });
-
-          // Cek threshold dan kirim notifikasi jika perlu
-          checkAndNotifyThreshold(ketinggianBaru, thresholdSettings.atas);
-
-          setChartData((prev) => {
-            const newData = [
-              ...prev,
-              {
-                time: new Date().toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                }),
-                flow: val.kolam?.laju_aliran_mls || 0,
-                total: val.kolam?.total_aliran_ml || 0,
-              },
-            ].slice(-20);
-            return newData;
-          });
-        }
-      },
-      (error) => {
-        console.error("Error membaca data monitoring:", error);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [thresholdSettings.atas, checkAndNotifyThreshold]);
+  }, []);
 
   // Ambil Data Riwayat
   useEffect(() => {
@@ -516,76 +278,12 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistration().then((registration) => {
-        console.log("SW Registration:", registration);
-        if (!registration) {
-          console.error("Service Worker belum terdaftar!");
-        }
-      });
-    }
-
-    console.log("Notification permission:", Notification.permission);
-  }, []);
-
   const getModeLabel = () => {
     if (!isMasterOn) return "OFF";
     if (selectedMode === "C") return "CONTINUE";
     if (selectedMode === "P") return "PARTIAL";
     if (selectedMode === "R") return "RANDOM";
     return "UNKNOWN";
-  };
-
-  const showAlert = useCallback((type, message) => {
-    const newAlert = {
-      id: Date.now(),
-      type, // 'warning', 'danger', 'info', 'success'
-      message,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-
-    setAlerts((prev) => [newAlert, ...prev].slice(0, 5)); // Simpan max 5 alert
-
-    // Auto remove alert setelah 10 detik
-    setTimeout(() => {
-      setAlerts((prev) => prev.filter((a) => a.id !== newAlert.id));
-    }, 10000);
-  }, []);
-
-  // 4. FUNGSI BARU - Kirim notifikasi browser
-  const sendBrowserNotification = useCallback((title, body) => {
-    if (typeof Notification === "undefined") {
-      console.warn("Browser tidak mendukung notifikasi");
-      return;
-    }
-
-    if (Notification.permission === "granted") {
-      try {
-        const notification = new Notification(title, {
-          body: body,
-          icon: "/logo192.png",
-          badge: "/logo192.png",
-          tag: "water-level-alert",
-          requireInteraction: true,
-          vibrate: [200, 100, 200],
-        });
-
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-
-        console.log("✅ Notifikasi browser dikirim:", title);
-      } catch (error) {
-        console.error("❌ Error mengirim notifikasi:", error);
-      }
-    }
-  }, []);
-
-  // 7. FUNGSI BARU - Hapus alert manual
-  const removeAlert = (id) => {
-    setAlerts((prev) => prev.filter((a) => a.id !== id));
   };
 
   return (
@@ -652,41 +350,9 @@ function App() {
         <header className="ac-header">
           <h1>{activePage.toUpperCase()}</h1>
           <div className="ac-header-actions">
-            <button
-              className="ac-noti-btn"
-              onClick={requestPermissionAndToken}
-              title={
-                notificationStatus === "granted"
-                  ? "Notifikasi Aktif"
-                  : notificationStatus === "denied"
-                  ? "Notifikasi Diblokir"
-                  : "Aktifkan Notifikasi"
-              }
-            >
-              {notificationStatus === "granted" ? "🔔" : "🔕"}
-            </button>
             <span className="ac-status-online">● Online</span>
           </div>
         </header>
-
-        {alerts.length > 0 && (
-          <div className="ac-alert-container">
-            {alerts.map((alert) => (
-              <div key={alert.id} className={`ac-alert ac-alert-${alert.type}`}>
-                <div>
-                  <p className="ac-alert-message">{alert.message}</p>
-                  <small className="ac-alert-time">{alert.timestamp}</small>
-                </div>
-                <button
-                  onClick={() => removeAlert(alert.id)}
-                  className="ac-alert-close"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
 
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
@@ -1029,3 +695,5 @@ function App() {
     </div>
   );
 }
+
+export default App;
