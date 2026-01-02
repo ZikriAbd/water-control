@@ -707,7 +707,7 @@ function App() {
   const [notificationStatus, setNotificationStatus] = useState("checking"); // checking, granted, denied
 
   const VAPID_KEY =
-    "BEG3uTuon198nsVSm-cy7D7b8cKGSrlhq6TbQysmsIh3e0dfsggHjOef1W3pUXvx1Fegh0SUpQCWSqWKf99bmY4";
+    "BMAr4XkoS8aFdSKqEfjxiKGeMRr_EwqzdfxJ77CsanfFqe6YvB6BgW4CDMJNumSqqQCbox-UNzQFrIucnhqk3fk";
 
   // Inisialisasi Notifikasi dengan error handling yang lebih baik
   const requestPermissionAndToken = useCallback(async () => {
