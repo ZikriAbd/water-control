@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { db } from "./firebase";
 import {
   ref,
@@ -49,8 +49,10 @@ function App() {
   });
 
   const [historyData, setHistoryData] = useState([]);
+  const [volumeHistory, setVolumeHistory] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [selectedVolumeItems, setSelectedVolumeItems] = useState([]);
 
   // Ambil Data Monitoring
   useEffect(() => {
@@ -94,7 +96,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Ambil Data Riwayat
+  // Ambil Data Riwayat Penggunaan
   useEffect(() => {
     const historyRef = ref(db, "history/penggunaan");
     const unsubscribe = onValue(
@@ -113,6 +115,31 @@ function App() {
       },
       (error) => {
         console.error("Error membaca riwayat:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Ambil Data History Volume
+  useEffect(() => {
+    const volumeHistoryRef = ref(db, "history/volume");
+    const unsubscribe = onValue(
+      volumeHistoryRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.val();
+          setVolumeHistory(
+            Object.keys(data)
+              .map((k) => ({ id: k, ...data[k] }))
+              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+          );
+        } else {
+          setVolumeHistory([]);
+        }
+      },
+      (error) => {
+        console.error("Error membaca history volume:", error);
       }
     );
 
@@ -183,6 +210,20 @@ function App() {
     }
   };
 
+  const handleSelectVolumeItem = (id) => {
+    setSelectedVolumeItems((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllVolume = () => {
+    if (selectedVolumeItems.length === volumeHistory.length) {
+      setSelectedVolumeItems([]);
+    } else {
+      setSelectedVolumeItems(volumeHistory.map((item) => item.id));
+    }
+  };
+
   const deleteSelectedHistory = async () => {
     if (selectedItems.length === 0) return;
 
@@ -202,6 +243,65 @@ function App() {
     } catch (err) {
       console.error("Error menghapus data:", err);
       alert("Gagal menghapus data: " + err.message);
+    }
+  };
+
+  const deleteSelectedVolumeHistory = async () => {
+    if (selectedVolumeItems.length === 0) return;
+
+    if (
+      !window.confirm(
+        `Hapus ${selectedVolumeItems.length} data volume terpilih?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const deletePromises = selectedVolumeItems.map((id) =>
+        remove(ref(db, `history/volume/${id}`))
+      );
+      await Promise.all(deletePromises);
+      setSelectedVolumeItems([]);
+      alert("Data volume berhasil dihapus.");
+    } catch (err) {
+      console.error("Error menghapus data volume:", err);
+      alert("Gagal menghapus data volume: " + err.message);
+    }
+  };
+
+  // Reset Total Volume
+  const resetTotalVolume = async () => {
+    if (dataMonitoring.totalVolume === 0) {
+      alert("Total volume sudah 0, tidak perlu direset.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Reset total volume ${dataMonitoring.totalVolume.toFixed(
+          0
+        )} ml dan simpan ke history?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      // Simpan ke history/volume
+      await push(ref(db, "history/volume"), {
+        total_ml: dataMonitoring.totalVolume,
+        tanggal: new Date().toLocaleString("id-ID"),
+        timestamp: serverTimestamp(),
+      });
+
+      // Reset total volume di Firebase
+      await set(ref(db, "monitoring/kolam/total_aliran_ml"), 0);
+
+      alert("✅ Total volume berhasil direset dan disimpan ke history!");
+    } catch (error) {
+      console.error("Error reset total volume:", error);
+      alert("❌ Gagal reset total volume: " + error.message);
     }
   };
 
@@ -231,7 +331,7 @@ function App() {
       await set(ref(db, "pengaturan/tandon"), {
         threshold_atas: vAtas,
         threshold_bawah: vBawah,
-        max_safety_limit: 140,
+        max_safety_limit: 100,
       });
 
       await set(ref(db, "kontrol/solenoid_1"), {
@@ -410,6 +510,23 @@ function App() {
                 Total Volume:{" "}
                 <strong>{dataMonitoring.totalVolume.toFixed(0)} ml</strong>
               </p>
+              <button
+                className="ac-btn-reset-volume"
+                onClick={resetTotalVolume}
+                style={{
+                  marginTop: "15px",
+                  padding: "10px 20px",
+                  backgroundColor: "#ff9800",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "0.9rem",
+                }}
+              >
+                🔄 Reset Total Volume
+              </button>
               <hr className="ac-divider-thin" />
               <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
                 Sukamandi, Subang, Jawa Barat 41263
@@ -605,6 +722,87 @@ function App() {
                 </div>
               </div>
             </div>
+
+            {/* History Total Volume */}
+            <div
+              className="ac-card ac-full-width"
+              style={{ marginTop: "20px" }}
+            >
+              <div className="ac-history-header">
+                <h3>💧 Riwayat Total Volume</h3>
+                {selectedVolumeItems.length > 0 && (
+                  <button
+                    className="ac-btn-delete-multi"
+                    onClick={deleteSelectedVolumeHistory}
+                    style={{
+                      backgroundColor: "#dc3545",
+                      color: "white",
+                      padding: "8px 15px",
+                      borderRadius: "5px",
+                      cursor: "pointer",
+                      border: "none",
+                    }}
+                  >
+                    🗑️ Hapus ({selectedVolumeItems.length})
+                  </button>
+                )}
+              </div>
+              <div className="ac-table-container">
+                <table className="ac-history-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: "40px" }}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            volumeHistory.length > 0 &&
+                            selectedVolumeItems.length === volumeHistory.length
+                          }
+                          onChange={handleSelectAllVolume}
+                        />
+                      </th>
+                      <th>Waktu</th>
+                      <th>Total Volume</th>
+                      <th>Total (Liter)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {volumeHistory.length > 0 ? (
+                      volumeHistory.map((item) => (
+                        <tr
+                          key={item.id}
+                          className={
+                            selectedVolumeItems.includes(item.id)
+                              ? "selected-row"
+                              : ""
+                          }
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedVolumeItems.includes(item.id)}
+                              onChange={() => handleSelectVolumeItem(item.id)}
+                            />
+                          </td>
+                          <td>{item.tanggal}</td>
+                          <td>
+                            <strong>{item.total_ml?.toFixed(0) || 0} ml</strong>
+                          </td>
+                          <td>{((item.total_ml || 0) / 1000).toFixed(2)} L</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: "center" }}>
+                          Belum ada riwayat volume.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
