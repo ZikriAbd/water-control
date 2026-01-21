@@ -305,35 +305,9 @@ function App() {
     }
   };
 
-  // Simpan Pengaturan
-  const saveAllSettings = async () => {
-    const vAtas = parseInt(thresholdSettings.atas);
-    const vBawah = parseInt(thresholdSettings.bawah);
-
-    if (isNaN(vAtas) || isNaN(vBawah)) {
-      alert("Error: Nilai threshold harus berupa angka!");
-      return;
-    }
-
-    if (vBawah >= vAtas) {
-      alert(
-        "Error: Batas Bawah tidak boleh melebihi atau sama dengan Batas Atas!",
-      );
-      return;
-    }
-
-    if (vAtas > 100 || vBawah < 0) {
-      alert("Error: Nilai threshold harus antara 0-100%!");
-      return;
-    }
-
+  // Simpan Pengaturan Kolam
+  const saveKolamSettings = async () => {
     try {
-      await set(ref(db, "pengaturan/tandon"), {
-        threshold_atas: vAtas,
-        threshold_bawah: vBawah,
-        max_safety_limit: 100,
-      });
-
       await set(ref(db, "kontrol/solenoid_1"), {
         mode_aktif: selectedMode,
         master_switch: isMasterOn,
@@ -371,10 +345,53 @@ function App() {
         timestamp: serverTimestamp(),
       });
 
-      alert("✅ Pengaturan Berhasil Disimpan!");
+      alert("✅ Pengaturan Kolam Berhasil Disimpan!");
     } catch (error) {
-      console.error("Error menyimpan pengaturan:", error);
-      alert("❌ Gagal menyimpan pengaturan: " + error.message);
+      console.error("Error menyimpan pengaturan kolam:", error);
+      alert("❌ Gagal menyimpan pengaturan kolam: " + error.message);
+    }
+  };
+
+  // Simpan Pengaturan Tandon
+  const saveTandonSettings = async () => {
+    const vAtas = parseInt(thresholdSettings.atas);
+    const vBawah = parseInt(thresholdSettings.bawah);
+
+    if (isNaN(vAtas) || isNaN(vBawah)) {
+      alert("Error: Nilai threshold harus berupa angka!");
+      return;
+    }
+
+    if (vBawah >= vAtas) {
+      alert(
+        "Error: Batas Bawah tidak boleh melebihi atau sama dengan Batas Atas!",
+      );
+      return;
+    }
+
+    if (vAtas > 100 || vBawah < 0) {
+      alert("Error: Nilai threshold harus antara 0-100%!");
+      return;
+    }
+
+    try {
+      await set(ref(db, "pengaturan/tandon"), {
+        threshold_atas: vAtas,
+        threshold_bawah: vBawah,
+        max_safety_limit: 100,
+      });
+
+      await push(ref(db, "history/penggunaan"), {
+        tanggal: new Date().toLocaleString("id-ID"),
+        mode: "THRESHOLD UPDATE",
+        durasi: `Batas Atas: ${vAtas}%, Batas Bawah: ${vBawah}%`,
+        timestamp: serverTimestamp(),
+      });
+
+      alert("✅ Pengaturan Tandon Berhasil Disimpan!");
+    } catch (error) {
+      console.error("Error menyimpan pengaturan tandon:", error);
+      alert("❌ Gagal menyimpan pengaturan tandon: " + error.message);
     }
   };
 
@@ -546,7 +563,7 @@ function App() {
               </div>
             </div>
 
-            {/* SECTION 1: KONTROL SOLENOID KOLAM (Affected by Master Switch) */}
+            {/* ========== SECTION 1: KONTROL SOLENOID KOLAM ========== */}
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
               <h4 className="ac-section-title">🏊 Kontrol Solenoid Kolam</h4>
 
@@ -640,12 +657,21 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              {/* TOMBOL SIMPAN KOLAM */}
+              <button
+                className="ac-btn-save-settings"
+                onClick={saveKolamSettings}
+                disabled={!isMasterOn}
+              >
+                💾 Simpan Pengaturan Kolam
+              </button>
             </div>
 
             {/* DIVIDER */}
             <hr className="ac-section-divider" />
 
-            {/* SECTION 2: THRESHOLD TANDON (NOT Affected by Master Switch) */}
+            {/* ========== SECTION 2: THRESHOLD TANDON ========== */}
             <div>
               <h4 className="ac-section-title">
                 💧 Pengaturan Threshold Tandon (Solenoid II - Otomatis)
@@ -700,12 +726,15 @@ function App() {
                   />
                 </div>
               </div>
-            </div>
 
-            {/* TOMBOL SIMPAN */}
-            <button className="ac-btn-save-settings" onClick={saveAllSettings}>
-              💾 Simpan Semua Pengaturan
-            </button>
+              {/* TOMBOL SIMPAN TANDON */}
+              <button
+                className="ac-btn-save-settings ac-btn-save-tandon"
+                onClick={saveTandonSettings}
+              >
+                💾 Simpan Pengaturan Tandon
+              </button>
+            </div>
           </div>
         )}
 
