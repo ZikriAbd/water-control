@@ -288,20 +288,44 @@ function App() {
     }
 
     try {
-      // Simpan ke history/volume
       await push(ref(db, "history/volume"), {
         total_ml: dataMonitoring.totalVolume,
         tanggal: new Date().toLocaleString("id-ID"),
         timestamp: serverTimestamp(),
       });
 
-      // Reset total volume di Firebase
       await set(ref(db, "monitoring/kolam/total_aliran_ml"), 0);
 
       alert("✅ Total volume berhasil direset dan disimpan ke history!");
     } catch (error) {
       console.error("Error reset total volume:", error);
       alert("❌ Gagal reset total volume: " + error.message);
+    }
+  };
+
+  // Handler untuk Master Switch dengan auto-save
+  const handleMasterSwitchToggle = async (e) => {
+    const newState = e.target.checked;
+    setIsMasterOn(newState);
+
+    try {
+      await set(ref(db, "kontrol/solenoid_1/master_switch"), newState);
+      await set(ref(db, "kontrol/solenoid_1/status_relay"), newState);
+
+      await push(ref(db, "history/penggunaan"), {
+        tanggal: new Date().toLocaleString("id-ID"),
+        mode: newState ? "MASTER ON" : "MASTER OFF",
+        durasi: newState ? "Sistem Diaktifkan" : "Sistem Dihentikan",
+        timestamp: serverTimestamp(),
+      });
+
+      console.log(
+        `✅ Master switch berhasil diubah menjadi ${newState ? "ON" : "OFF"}`,
+      );
+    } catch (error) {
+      console.error("Error mengubah master switch:", error);
+      alert("❌ Gagal mengubah master switch: " + error.message);
+      setIsMasterOn(!newState);
     }
   };
 
@@ -471,7 +495,6 @@ function App() {
           </div>
         </header>
 
-        {/* ========== DASHBOARD PAGE ========== */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
@@ -542,10 +565,8 @@ function App() {
           </div>
         )}
 
-        {/* ========== CONTROLS PAGE ========== */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
-            {/* HEADER */}
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
               <div className="ac-master-switch-container">
@@ -556,14 +577,13 @@ function App() {
                   <input
                     type="checkbox"
                     checked={isMasterOn}
-                    onChange={() => setIsMasterOn(!isMasterOn)}
+                    onChange={handleMasterSwitchToggle}
                   />
                   <span className="ac-slider ac-round"></span>
                 </label>
               </div>
             </div>
 
-            {/* ========== SECTION 1: KONTROL SOLENOID KOLAM ========== */}
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
               <h4 className="ac-section-title">🏊 Kontrol Solenoid Kolam</h4>
 
@@ -581,7 +601,6 @@ function App() {
               </div>
 
               <div className="ac-settings-grid">
-                {/* Mode Partial */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "P" && isMasterOn ? "highlight" : ""
@@ -620,7 +639,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Mode Random */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "R" && isMasterOn ? "highlight" : ""
@@ -658,7 +676,6 @@ function App() {
                 </div>
               </div>
 
-              {/* TOMBOL SIMPAN KOLAM */}
               <button
                 className="ac-btn-save-settings"
                 onClick={saveKolamSettings}
@@ -668,10 +685,8 @@ function App() {
               </button>
             </div>
 
-            {/* DIVIDER */}
             <hr className="ac-section-divider" />
 
-            {/* ========== SECTION 2: THRESHOLD TANDON ========== */}
             <div>
               <h4 className="ac-section-title">
                 💧 Pengaturan Threshold Tandon (Solenoid II - Otomatis)
@@ -682,7 +697,6 @@ function App() {
               </p>
 
               <div className="ac-settings-grid">
-                {/* Batas Atas */}
                 <div className="ac-setting-box highlight">
                   <h4>🚀 Batas Atas (%)</h4>
                   <p className="ac-threshold-desc">
@@ -704,7 +718,6 @@ function App() {
                   />
                 </div>
 
-                {/* Batas Bawah */}
                 <div className="ac-setting-box highlight">
                   <h4>💧 Batas Bawah (%)</h4>
                   <p className="ac-threshold-desc">
@@ -727,7 +740,6 @@ function App() {
                 </div>
               </div>
 
-              {/* TOMBOL SIMPAN TANDON */}
               <button
                 className="ac-btn-save-settings ac-btn-save-tandon"
                 onClick={saveTandonSettings}
@@ -738,7 +750,6 @@ function App() {
           </div>
         )}
 
-        {/* ========== HISTORY PAGE ========== */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
@@ -785,7 +796,6 @@ function App() {
               </div>
             </div>
 
-            {/* History Total Volume */}
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
@@ -857,7 +867,6 @@ function App() {
               </div>
             </div>
 
-            {/* History Log Penggunaan */}
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
