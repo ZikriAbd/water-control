@@ -90,7 +90,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca data monitoring:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -107,7 +107,7 @@ function App() {
           setHistoryData(
             Object.keys(data)
               .map((k) => ({ id: k, ...data[k] }))
-              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
           );
         } else {
           setHistoryData([]);
@@ -115,7 +115,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca riwayat:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -132,7 +132,7 @@ function App() {
           setVolumeHistory(
             Object.keys(data)
               .map((k) => ({ id: k, ...data[k] }))
-              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
           );
         } else {
           setVolumeHistory([]);
@@ -140,7 +140,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca history volume:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -162,7 +162,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca pengaturan tandon:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -190,7 +190,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca kontrol solenoid:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -198,7 +198,7 @@ function App() {
 
   const handleSelectItem = (id) => {
     setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -212,7 +212,7 @@ function App() {
 
   const handleSelectVolumeItem = (id) => {
     setSelectedVolumeItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -235,7 +235,7 @@ function App() {
 
     try {
       const deletePromises = selectedItems.map((id) =>
-        remove(ref(db, `history/penggunaan/${id}`))
+        remove(ref(db, `history/penggunaan/${id}`)),
       );
       await Promise.all(deletePromises);
       setSelectedItems([]);
@@ -251,7 +251,7 @@ function App() {
 
     if (
       !window.confirm(
-        `Hapus ${selectedVolumeItems.length} data volume terpilih?`
+        `Hapus ${selectedVolumeItems.length} data volume terpilih?`,
       )
     ) {
       return;
@@ -259,7 +259,7 @@ function App() {
 
     try {
       const deletePromises = selectedVolumeItems.map((id) =>
-        remove(ref(db, `history/volume/${id}`))
+        remove(ref(db, `history/volume/${id}`)),
       );
       await Promise.all(deletePromises);
       setSelectedVolumeItems([]);
@@ -280,8 +280,8 @@ function App() {
     if (
       !window.confirm(
         `Reset total volume ${dataMonitoring.totalVolume.toFixed(
-          0
-        )} ml dan simpan ke history?`
+          0,
+        )} ml dan simpan ke history?`,
       )
     ) {
       return;
@@ -317,7 +317,7 @@ function App() {
 
     if (vBawah >= vAtas) {
       alert(
-        "Error: Batas Bawah tidak boleh melebihi atau sama dengan Batas Atas!"
+        "Error: Batas Bawah tidak boleh melebihi atau sama dengan Batas Atas!",
       );
       return;
     }
@@ -351,18 +351,18 @@ function App() {
       const modeLabel = !isMasterOn
         ? "OFF"
         : selectedMode === "C"
-        ? "CONTINUE"
-        : selectedMode === "P"
-        ? "PARTIAL"
-        : "RANDOM";
+          ? "CONTINUE"
+          : selectedMode === "P"
+            ? "PARTIAL"
+            : "RANDOM";
 
       const detailLog = !isMasterOn
         ? "SISTEM BERHENTI"
         : selectedMode === "P"
-        ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
-        : selectedMode === "R"
-        ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
-        : "Terus Menerus";
+          ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
+          : selectedMode === "R"
+            ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
+            : "Terus Menerus";
 
       await push(ref(db, "history/penggunaan"), {
         tanggal: new Date().toLocaleString("id-ID"),
@@ -454,6 +454,7 @@ function App() {
           </div>
         </header>
 
+        {/* ========== DASHBOARD PAGE ========== */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
@@ -513,17 +514,6 @@ function App() {
               <button
                 className="ac-btn-reset-volume"
                 onClick={resetTotalVolume}
-                style={{
-                  marginTop: "15px",
-                  padding: "10px 20px",
-                  backgroundColor: "#ff9800",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                  fontSize: "0.9rem",
-                }}
               >
                 🔄 Reset Total Volume
               </button>
@@ -535,8 +525,10 @@ function App() {
           </div>
         )}
 
+        {/* ========== CONTROLS PAGE ========== */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
+            {/* HEADER */}
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
               <div className="ac-master-switch-container">
@@ -553,7 +545,11 @@ function App() {
                 </label>
               </div>
             </div>
+
+            {/* SECTION 1: KONTROL SOLENOID KOLAM (Affected by Master Switch) */}
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
+              <h4 className="ac-section-title">🏊 Kontrol Solenoid Kolam</h4>
+
               <div className="ac-mode-selector">
                 {["C", "P", "R"].map((m) => (
                   <button
@@ -566,7 +562,9 @@ function App() {
                   </button>
                 ))}
               </div>
+
               <div className="ac-settings-grid">
+                {/* Mode Partial */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "P" && isMasterOn ? "highlight" : ""
@@ -574,7 +572,7 @@ function App() {
                 >
                   <h4>⏱️ Mode Partial</h4>
                   <div className="ac-input-group">
-                    <label>ON (Min)</label>
+                    <label>ON (Menit)</label>
                     <input
                       type="number"
                       min="1"
@@ -589,7 +587,7 @@ function App() {
                     />
                   </div>
                   <div className="ac-input-group">
-                    <label>OFF (Min)</label>
+                    <label>OFF (Menit)</label>
                     <input
                       type="number"
                       min="1"
@@ -604,6 +602,8 @@ function App() {
                     />
                   </div>
                 </div>
+
+                {/* Mode Random */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "R" && isMasterOn ? "highlight" : ""
@@ -611,7 +611,7 @@ function App() {
                 >
                   <h4>📅 Mode Random</h4>
                   <div className="ac-input-group">
-                    <label>Mulai</label>
+                    <label>Jam Mulai</label>
                     <input
                       type="time"
                       value={randomSettings.mulai}
@@ -625,7 +625,7 @@ function App() {
                     />
                   </div>
                   <div className="ac-input-group">
-                    <label>Selesai</label>
+                    <label>Jam Selesai</label>
                     <input
                       type="time"
                       value={randomSettings.selesai}
@@ -639,8 +639,30 @@ function App() {
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* DIVIDER */}
+            <hr className="ac-section-divider" />
+
+            {/* SECTION 2: THRESHOLD TANDON (NOT Affected by Master Switch) */}
+            <div>
+              <h4 className="ac-section-title">
+                💧 Pengaturan Threshold Tandon (Solenoid II - Otomatis)
+              </h4>
+              <p className="ac-threshold-info">
+                ℹ️ Pengaturan ini mengontrol solenoid tandon secara otomatis dan{" "}
+                <strong>tidak dipengaruhi</strong> oleh Master Switch kolam.
+              </p>
+
+              <div className="ac-settings-grid">
+                {/* Batas Atas */}
                 <div className="ac-setting-box highlight">
                   <h4>🚀 Batas Atas (%)</h4>
+                  <p className="ac-threshold-desc">
+                    Katup tandon akan <strong>TUTUP</strong> saat air mencapai
+                    batas ini
+                  </p>
                   <input
                     type="number"
                     min="0"
@@ -652,10 +674,17 @@ function App() {
                         atas: e.target.value,
                       })
                     }
+                    className="ac-threshold-input"
                   />
                 </div>
+
+                {/* Batas Bawah */}
                 <div className="ac-setting-box highlight">
                   <h4>💧 Batas Bawah (%)</h4>
+                  <p className="ac-threshold-desc">
+                    Katup tandon akan <strong>BUKA</strong> saat air turun ke
+                    batas ini
+                  </p>
                   <input
                     type="number"
                     min="0"
@@ -667,16 +696,20 @@ function App() {
                         bawah: e.target.value,
                       })
                     }
+                    className="ac-threshold-input"
                   />
                 </div>
               </div>
             </div>
+
+            {/* TOMBOL SIMPAN */}
             <button className="ac-btn-save-settings" onClick={saveAllSettings}>
-              💾 Simpan Pengaturan
+              💾 Simpan Semua Pengaturan
             </button>
           </div>
         )}
 
+        {/* ========== HISTORY PAGE ========== */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
@@ -734,14 +767,6 @@ function App() {
                   <button
                     className="ac-btn-delete-multi"
                     onClick={deleteSelectedVolumeHistory}
-                    style={{
-                      backgroundColor: "#dc3545",
-                      color: "white",
-                      padding: "8px 15px",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                      border: "none",
-                    }}
                   >
                     🗑️ Hapus ({selectedVolumeItems.length})
                   </button>
@@ -803,24 +828,17 @@ function App() {
               </div>
             </div>
 
+            {/* History Log Penggunaan */}
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
             >
               <div className="ac-history-header">
-                <h3>📜 Riwayat Log</h3>
+                <h3>📜 Riwayat Log Penggunaan</h3>
                 {selectedItems.length > 0 && (
                   <button
                     className="ac-btn-delete-multi"
                     onClick={deleteSelectedHistory}
-                    style={{
-                      backgroundColor: "#dc3545",
-                      color: "white",
-                      padding: "8px 15px",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                      border: "none",
-                    }}
                   >
                     🗑️ Hapus ({selectedItems.length})
                   </button>
