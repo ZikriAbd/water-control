@@ -325,6 +325,7 @@ function App() {
     } catch (error) {
       console.error("Error mengubah master switch:", error);
       alert("❌ Gagal mengubah master switch: " + error.message);
+      // Rollback jika gagal
       setIsMasterOn(!newState);
     }
   };
@@ -427,6 +428,20 @@ function App() {
     return "UNKNOWN";
   };
 
+  // ✅ FUNGSI BARU: Tentukan class badge berdasarkan mode
+  const getBadgeClass = (mode) => {
+    if (mode === "OFF" || mode === "MASTER OFF") return "off";
+    if (
+      mode === "CONTINUE" ||
+      mode === "PARTIAL" ||
+      mode === "RANDOM" ||
+      mode === "MASTER ON" ||
+      mode === "THRESHOLD UPDATE"
+    )
+      return "on";
+    return "on";
+  };
+
   return (
     <div className={`ac-container ${isDarkMode ? "dark-theme" : ""}`}>
       <div
@@ -495,6 +510,7 @@ function App() {
           </div>
         </header>
 
+        {/* ========== DASHBOARD PAGE ========== */}
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
@@ -565,8 +581,10 @@ function App() {
           </div>
         )}
 
+        {/* ========== CONTROLS PAGE ========== */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
+            {/* HEADER */}
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
               <div className="ac-master-switch-container">
@@ -584,6 +602,7 @@ function App() {
               </div>
             </div>
 
+            {/* ========== SECTION 1: KONTROL SOLENOID KOLAM ========== */}
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
               <h4 className="ac-section-title">🏊 Kontrol Solenoid Kolam</h4>
 
@@ -601,6 +620,7 @@ function App() {
               </div>
 
               <div className="ac-settings-grid">
+                {/* Mode Partial */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "P" && isMasterOn ? "highlight" : ""
@@ -639,6 +659,7 @@ function App() {
                   </div>
                 </div>
 
+                {/* Mode Random */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "R" && isMasterOn ? "highlight" : ""
@@ -676,6 +697,7 @@ function App() {
                 </div>
               </div>
 
+              {/* TOMBOL SIMPAN KOLAM */}
               <button
                 className="ac-btn-save-settings"
                 onClick={saveKolamSettings}
@@ -685,8 +707,10 @@ function App() {
               </button>
             </div>
 
+            {/* DIVIDER */}
             <hr className="ac-section-divider" />
 
+            {/* ========== SECTION 2: THRESHOLD TANDON ========== */}
             <div>
               <h4 className="ac-section-title">
                 💧 Pengaturan Threshold Tandon (Solenoid II - Otomatis)
@@ -697,6 +721,7 @@ function App() {
               </p>
 
               <div className="ac-settings-grid">
+                {/* Batas Atas */}
                 <div className="ac-setting-box highlight">
                   <h4>🚀 Batas Atas (%)</h4>
                   <p className="ac-threshold-desc">
@@ -718,6 +743,7 @@ function App() {
                   />
                 </div>
 
+                {/* Batas Bawah */}
                 <div className="ac-setting-box highlight">
                   <h4>💧 Batas Bawah (%)</h4>
                   <p className="ac-threshold-desc">
@@ -740,6 +766,7 @@ function App() {
                 </div>
               </div>
 
+              {/* TOMBOL SIMPAN TANDON */}
               <button
                 className="ac-btn-save-settings ac-btn-save-tandon"
                 onClick={saveTandonSettings}
@@ -750,6 +777,7 @@ function App() {
           </div>
         )}
 
+        {/* ========== HISTORY PAGE ========== */}
         {activePage === "history" && (
           <div className="ac-fade-in">
             <div className="ac-dashboard-grid">
@@ -796,6 +824,7 @@ function App() {
               </div>
             </div>
 
+            {/* History Total Volume */}
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
@@ -867,6 +896,7 @@ function App() {
               </div>
             </div>
 
+            {/* History Log Penggunaan */}
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
@@ -921,10 +951,9 @@ function App() {
                           </td>
                           <td>{item.tanggal}</td>
                           <td>
+                            {/* ✅ PERBAIKAN: Gunakan fungsi getBadgeClass */}
                             <span
-                              className={`ac-badge ${
-                                item.mode === "OFF" ? "off" : "on"
-                              }`}
+                              className={`ac-badge ${getBadgeClass(item.mode)}`}
                             >
                               {item.mode}
                             </span>
@@ -935,7 +964,7 @@ function App() {
                     ) : (
                       <tr>
                         <td colSpan="4" style={{ textAlign: "center" }}>
-                          Belum ada log.
+                          Belum ada log penggunaan.
                         </td>
                       </tr>
                     )}
