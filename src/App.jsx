@@ -716,8 +716,8 @@ function App() {
                 💧 Pengaturan Threshold Tandon (Solenoid II - Otomatis)
               </h4>
               <p className="ac-threshold-info">
-                ℹ️ Pengaturan ini mengontrol solenoid tandon secara otomatis dan{" "}
-                <strong>tidak dipengaruhi</strong> oleh Master Switch kolam.
+                ℹ️ Pengaturan ini mengontrol solenoid untuk tandon secara
+                otomatis.
               </p>
 
               <div className="ac-settings-grid">
