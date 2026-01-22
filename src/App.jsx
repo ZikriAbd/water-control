@@ -604,7 +604,9 @@ function App() {
 
             {/* ========== SECTION 1: KONTROL SOLENOID KOLAM ========== */}
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
-              <h4 className="ac-section-title">🏊 Kontrol Solenoid Kolam</h4>
+              <h4 className="ac-section-title">
+                🏊 Kontrol Solenoid Kolam (Solenoid I - Otomatis)
+              </h4>
 
               <div className="ac-mode-selector">
                 {["C", "P", "R"].map((m) => (
