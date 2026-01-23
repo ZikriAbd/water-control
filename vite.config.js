@@ -8,7 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
+      devOptions: {
+        enabled: true,
+      },
+      includeAssets: ["favicon.ico", "apple-touch-icon.png"],
       manifest: {
         name: "Water Control",
         short_name: "Water Control",
