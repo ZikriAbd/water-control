@@ -437,7 +437,7 @@ function App() {
     doc.setFontSize(16);
     doc.text("Laporan Riwayat Volume Air", 14, 20);
     doc.setFontSize(10);
-    doc.text("Water Control System - BRPI Sukamandi", 14, 26);
+    doc.text("Smart Water Control System - BRPI Sukamandi", 14, 26);
     doc.text(`Dicetak pada: ${new Date().toLocaleString("id-ID")}`, 14, 32);
 
     const tableColumn = ["No", "Waktu", "Total (ml)", "Total (Liter)"];
@@ -468,7 +468,7 @@ function App() {
     doc.setFontSize(16);
     doc.text("Laporan Log Aktivitas Sistem", 14, 20);
     doc.setFontSize(10);
-    doc.text("Water Control System - BRPI Sukamandi", 14, 26);
+    doc.text("Smart Water Control System - BRPI Sukamandi", 14, 26);
     doc.text(`Dicetak pada: ${new Date().toLocaleString("id-ID")}`, 14, 32);
 
     const tableColumn = ["No", "Waktu", "Mode", "Keterangan Aktivitas"];
@@ -516,7 +516,7 @@ function App() {
 
       <aside className={`ac-sidebar ${isMenuOpen ? "open" : ""}`}>
         <div className="ac-sidebar-header">
-          <h2>AquaControl</h2>
+          <h2>Smart Water Control System</h2>
           <small>BRPI Sukamandi</small>
         </div>
         <nav>
