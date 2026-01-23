@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { db } from "./firebase";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   ref,
   onValue,
@@ -25,6 +27,10 @@ function App() {
   const [activePage, setActivePage] = useState("dashboard");
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // --- State Health Check (Deteksi Online/Offline) ---
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+  const [isDeviceOnline, setIsDeviceOnline] = useState(true);
 
   // States Monitoring & Pengaturan
   const [dataMonitoring, setDataMonitoring] = useState({
@@ -54,7 +60,7 @@ function App() {
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectedVolumeItems, setSelectedVolumeItems] = useState([]);
 
-  // Ambil Data Monitoring
+  // --- 1. Ambil Data Monitoring & Update Status Online ---
   useEffect(() => {
     const monitoringRef = ref(db, "monitoring");
     const unsubscribe = onValue(
@@ -62,6 +68,11 @@ function App() {
       (snap) => {
         if (snap.exists()) {
           const val = snap.val();
+
+          // Update Waktu Terakhir Data Masuk (Health Check)
+          setLastUpdate(Date.now());
+          setIsDeviceOnline(true);
+
           const ketinggianBaru = val.tandon?.ketinggian_cm || 0;
 
           setDataMonitoring({
@@ -96,7 +107,19 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Ambil Data Riwayat Penggunaan
+  // --- 2. Timer Deteksi Offline (Jika data diam > 60 detik) ---
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Jika waktu sekarang dikurang update terakhir > 60.000ms (1 menit)
+      if (Date.now() - lastUpdate > 60000) {
+        setIsDeviceOnline(false);
+      }
+    }, 5000); // Cek setiap 5 detik
+
+    return () => clearInterval(interval);
+  }, [lastUpdate]);
+
+  // --- 3. Ambil Data Riwayat Penggunaan ---
   useEffect(() => {
     const historyRef = ref(db, "history/penggunaan");
     const unsubscribe = onValue(
@@ -121,7 +144,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Ambil Data History Volume
+  // --- 4. Ambil Data History Volume ---
   useEffect(() => {
     const volumeHistoryRef = ref(db, "history/volume");
     const unsubscribe = onValue(
@@ -146,7 +169,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Ambil Pengaturan Tandon
+  // --- 5. Ambil Pengaturan Tandon ---
   useEffect(() => {
     const tandonRef = ref(db, "pengaturan/tandon");
     const unsubscribe = onValue(
@@ -168,7 +191,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Ambil Status Kontrol Solenoid
+  // --- 6. Ambil Status Kontrol Solenoid ---
   useEffect(() => {
     const solenoidRef = ref(db, "kontrol/solenoid_1");
     const unsubscribe = onValue(
@@ -196,6 +219,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  // --- Fungsi Helper Selection ---
   const handleSelectItem = (id) => {
     setSelectedItems((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
@@ -224,14 +248,11 @@ function App() {
     }
   };
 
+  // --- Fungsi Hapus Data ---
   const deleteSelectedHistory = async () => {
     if (selectedItems.length === 0) return;
-
-    if (
-      !window.confirm(`Hapus ${selectedItems.length} data riwayat terpilih?`)
-    ) {
+    if (!window.confirm(`Hapus ${selectedItems.length} data riwayat terpilih?`))
       return;
-    }
 
     try {
       const deletePromises = selectedItems.map((id) =>
@@ -248,14 +269,12 @@ function App() {
 
   const deleteSelectedVolumeHistory = async () => {
     if (selectedVolumeItems.length === 0) return;
-
     if (
       !window.confirm(
         `Hapus ${selectedVolumeItems.length} data volume terpilih?`,
       )
-    ) {
+    )
       return;
-    }
 
     try {
       const deletePromises = selectedVolumeItems.map((id) =>
@@ -270,7 +289,7 @@ function App() {
     }
   };
 
-  // Reset Total Volume
+  // --- Fungsi Reset Volume ---
   const resetTotalVolume = async () => {
     if (dataMonitoring.totalVolume === 0) {
       alert("Total volume sudah 0, tidak perlu direset.");
@@ -295,7 +314,6 @@ function App() {
       });
 
       await set(ref(db, "monitoring/kolam/total_aliran_ml"), 0);
-
       alert("✅ Total volume berhasil direset dan disimpan ke history!");
     } catch (error) {
       console.error("Error reset total volume:", error);
@@ -303,7 +321,7 @@ function App() {
     }
   };
 
-  // Handler untuk Master Switch dengan auto-save
+  // --- Fungsi Kontrol Solenoid ---
   const handleMasterSwitchToggle = async (e) => {
     const newState = e.target.checked;
     setIsMasterOn(newState);
@@ -318,19 +336,13 @@ function App() {
         durasi: newState ? "Sistem Diaktifkan" : "Sistem Dihentikan",
         timestamp: serverTimestamp(),
       });
-
-      console.log(
-        `✅ Master switch berhasil diubah menjadi ${newState ? "ON" : "OFF"}`,
-      );
     } catch (error) {
       console.error("Error mengubah master switch:", error);
       alert("❌ Gagal mengubah master switch: " + error.message);
-      // Rollback jika gagal
       setIsMasterOn(!newState);
     }
   };
 
-  // Simpan Pengaturan Kolam
   const saveKolamSettings = async () => {
     try {
       await set(ref(db, "kontrol/solenoid_1"), {
@@ -377,7 +389,6 @@ function App() {
     }
   };
 
-  // Simpan Pengaturan Tandon
   const saveTandonSettings = async () => {
     const vAtas = parseInt(thresholdSettings.atas);
     const vBawah = parseInt(thresholdSettings.bawah);
@@ -386,14 +397,10 @@ function App() {
       alert("Error: Nilai threshold harus berupa angka!");
       return;
     }
-
     if (vBawah >= vAtas) {
-      alert(
-        "Error: Batas Bawah tidak boleh melebihi atau sama dengan Batas Atas!",
-      );
+      alert("Error: Batas Bawah tidak boleh >= Batas Atas!");
       return;
     }
-
     if (vAtas > 100 || vBawah < 0) {
       alert("Error: Nilai threshold harus antara 0-100%!");
       return;
@@ -420,6 +427,69 @@ function App() {
     }
   };
 
+  // --- Fungsi PDF Export ---
+  const downloadPDFVolume = () => {
+    if (volumeHistory.length === 0) {
+      alert("Tidak ada data volume untuk dicetak!");
+      return;
+    }
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("Laporan Riwayat Volume Air", 14, 20);
+    doc.setFontSize(10);
+    doc.text("Water Control System - BRPI Sukamandi", 14, 26);
+    doc.text(`Dicetak pada: ${new Date().toLocaleString("id-ID")}`, 14, 32);
+
+    const tableColumn = ["No", "Waktu", "Total (ml)", "Total (Liter)"];
+    const tableRows = volumeHistory.map((item, index) => [
+      index + 1,
+      item.tanggal,
+      item.total_ml,
+      (item.total_ml / 1000).toFixed(2),
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 40,
+      theme: "grid",
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [26, 35, 126] },
+    });
+    doc.save("Laporan_Volume_Air.pdf");
+  };
+
+  const downloadPDFLogs = () => {
+    if (historyData.length === 0) {
+      alert("Tidak ada data log untuk dicetak!");
+      return;
+    }
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("Laporan Log Aktivitas Sistem", 14, 20);
+    doc.setFontSize(10);
+    doc.text("Water Control System - BRPI Sukamandi", 14, 26);
+    doc.text(`Dicetak pada: ${new Date().toLocaleString("id-ID")}`, 14, 32);
+
+    const tableColumn = ["No", "Waktu", "Mode", "Keterangan Aktivitas"];
+    const tableRows = historyData.map((item, index) => [
+      index + 1,
+      item.tanggal,
+      item.mode,
+      item.durasi,
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 40,
+      theme: "grid",
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [33, 150, 243] },
+    });
+    doc.save("Laporan_Log_Aktivitas.pdf");
+  };
+
   const getModeLabel = () => {
     if (!isMasterOn) return "OFF";
     if (selectedMode === "C") return "CONTINUE";
@@ -428,17 +498,8 @@ function App() {
     return "UNKNOWN";
   };
 
-  // ✅ FUNGSI BARU: Tentukan class badge berdasarkan mode
   const getBadgeClass = (mode) => {
     if (mode === "OFF" || mode === "MASTER OFF") return "off";
-    if (
-      mode === "CONTINUE" ||
-      mode === "PARTIAL" ||
-      mode === "RANDOM" ||
-      mode === "MASTER ON" ||
-      mode === "THRESHOLD UPDATE"
-    )
-      return "on";
     return "on";
   };
 
@@ -506,7 +567,26 @@ function App() {
         <header className="ac-header">
           <h1>{activePage.toUpperCase()}</h1>
           <div className="ac-header-actions">
-            <span className="ac-status-online">● Online</span>
+            {/* INDIKATOR STATUS ONLINE/OFFLINE */}
+            <div
+              className="ac-status-online"
+              style={{
+                backgroundColor: isDeviceOnline
+                  ? "rgba(76, 175, 80, 0.1)"
+                  : "rgba(244, 67, 54, 0.1)",
+                color: isDeviceOnline ? "#4caf50" : "#f44336",
+                border: `1px solid ${isDeviceOnline ? "#4caf50" : "#f44336"}`,
+                transition: "all 0.3s",
+              }}
+            >
+              {isDeviceOnline ? "● Online" : "● Offline / Putus"}
+            </div>
+            {/* Waktu update terakhir (Opsional) */}
+            {isDeviceOnline && (
+              <small style={{ fontSize: "0.7rem", color: "#888" }}>
+                Up: {new Date(lastUpdate).toLocaleTimeString()}
+              </small>
+            )}
           </div>
         </header>
 
@@ -584,7 +664,6 @@ function App() {
         {/* ========== CONTROLS PAGE ========== */}
         {activePage === "controls" && (
           <div className="ac-card ac-full-width ac-fade-in">
-            {/* HEADER */}
             <div className="ac-master-control-header">
               <h3>Solenoid Control</h3>
               <div className="ac-master-switch-container">
@@ -602,7 +681,6 @@ function App() {
               </div>
             </div>
 
-            {/* ========== SECTION 1: KONTROL SOLENOID KOLAM ========== */}
             <div className={isMasterOn ? "" : "ac-disabled-overlay"}>
               <h4 className="ac-section-title">
                 🏊 Kontrol Solenoid Kolam (Solenoid I - Otomatis)
@@ -622,7 +700,6 @@ function App() {
               </div>
 
               <div className="ac-settings-grid">
-                {/* Mode Partial */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "P" && isMasterOn ? "highlight" : ""
@@ -661,7 +738,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Mode Random */}
                 <div
                   className={`ac-setting-box ${
                     selectedMode === "R" && isMasterOn ? "highlight" : ""
@@ -699,7 +775,6 @@ function App() {
                 </div>
               </div>
 
-              {/* TOMBOL SIMPAN KOLAM */}
               <button
                 className="ac-btn-save-settings"
                 onClick={saveKolamSettings}
@@ -709,10 +784,8 @@ function App() {
               </button>
             </div>
 
-            {/* DIVIDER */}
             <hr className="ac-section-divider" />
 
-            {/* ========== SECTION 2: THRESHOLD TANDON ========== */}
             <div>
               <h4 className="ac-section-title">
                 💧 Pengaturan Threshold Tandon (Solenoid II - Otomatis)
@@ -723,7 +796,6 @@ function App() {
               </p>
 
               <div className="ac-settings-grid">
-                {/* Batas Atas */}
                 <div className="ac-setting-box highlight">
                   <h4>🚀 Batas Atas (%)</h4>
                   <p className="ac-threshold-desc">
@@ -745,7 +817,6 @@ function App() {
                   />
                 </div>
 
-                {/* Batas Bawah */}
                 <div className="ac-setting-box highlight">
                   <h4>💧 Batas Bawah (%)</h4>
                   <p className="ac-threshold-desc">
@@ -768,7 +839,6 @@ function App() {
                 </div>
               </div>
 
-              {/* TOMBOL SIMPAN TANDON */}
               <button
                 className="ac-btn-save-settings ac-btn-save-tandon"
                 onClick={saveTandonSettings}
@@ -826,21 +896,35 @@ function App() {
               </div>
             </div>
 
-            {/* History Total Volume */}
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
             >
               <div className="ac-history-header">
                 <h3>💧 Riwayat Total Volume</h3>
-                {selectedVolumeItems.length > 0 && (
+                {/* Tombol PDF & Hapus Volume */}
+                <div style={{ display: "flex", gap: "10px" }}>
                   <button
-                    className="ac-btn-delete-multi"
-                    onClick={deleteSelectedVolumeHistory}
+                    className="ac-btn-save-settings"
+                    style={{
+                      marginTop: 0,
+                      width: "auto",
+                      padding: "8px 15px",
+                      background: "#673ab7",
+                    }}
+                    onClick={downloadPDFVolume}
                   >
-                    🗑️ Hapus ({selectedVolumeItems.length})
+                    📄 PDF
                   </button>
-                )}
+                  {selectedVolumeItems.length > 0 && (
+                    <button
+                      className="ac-btn-delete-multi"
+                      onClick={deleteSelectedVolumeHistory}
+                    >
+                      🗑️ Hapus ({selectedVolumeItems.length})
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="ac-table-container">
                 <table className="ac-history-table">
@@ -898,21 +982,35 @@ function App() {
               </div>
             </div>
 
-            {/* History Log Penggunaan */}
             <div
               className="ac-card ac-full-width"
               style={{ marginTop: "20px" }}
             >
               <div className="ac-history-header">
                 <h3>📜 Riwayat Log Penggunaan</h3>
-                {selectedItems.length > 0 && (
+                {/* Tombol PDF & Hapus Log */}
+                <div style={{ display: "flex", gap: "10px" }}>
                   <button
-                    className="ac-btn-delete-multi"
-                    onClick={deleteSelectedHistory}
+                    className="ac-btn-save-settings"
+                    style={{
+                      marginTop: 0,
+                      width: "auto",
+                      padding: "8px 15px",
+                      background: "#673ab7",
+                    }}
+                    onClick={downloadPDFLogs}
                   >
-                    🗑️ Hapus ({selectedItems.length})
+                    📄 PDF
                   </button>
-                )}
+                  {selectedItems.length > 0 && (
+                    <button
+                      className="ac-btn-delete-multi"
+                      onClick={deleteSelectedHistory}
+                    >
+                      🗑️ Hapus ({selectedItems.length})
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="ac-table-container">
                 <table className="ac-history-table">
@@ -953,7 +1051,6 @@ function App() {
                           </td>
                           <td>{item.tanggal}</td>
                           <td>
-                            {/* ✅ PERBAIKAN: Gunakan fungsi getBadgeClass */}
                             <span
                               className={`ac-badge ${getBadgeClass(item.mode)}`}
                             >
