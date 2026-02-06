@@ -24,9 +24,19 @@ import {
 import "./App.css";
 
 function App() {
-  const [activePage, setActivePage] = useState("dashboard");
+  // --- MODIFIKASI 1: Cek LocalStorage saat inisialisasi ---
+  const [activePage, setActivePage] = useState(() => {
+    // Ambil data dari memori browser, jika tidak ada default ke "dashboard"
+    return localStorage.getItem("last_active_page") || "dashboard";
+  });
+
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // --- MODIFIKASI 2: Simpan ke LocalStorage setiap ganti halaman ---
+  useEffect(() => {
+    localStorage.setItem("last_active_page", activePage);
+  }, [activePage]);
 
   // --- State Health Check (Deteksi Online/Offline) ---
   const [lastUpdate, setLastUpdate] = useState(Date.now());
@@ -101,7 +111,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca data monitoring:", error);
-      },
+      }
     );
 
     return () => unsubscribe();
@@ -130,7 +140,7 @@ function App() {
           setHistoryData(
             Object.keys(data)
               .map((k) => ({ id: k, ...data[k] }))
-              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
+              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
           );
         } else {
           setHistoryData([]);
@@ -138,7 +148,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca riwayat:", error);
-      },
+      }
     );
 
     return () => unsubscribe();
@@ -155,7 +165,7 @@ function App() {
           setVolumeHistory(
             Object.keys(data)
               .map((k) => ({ id: k, ...data[k] }))
-              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
+              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
           );
         } else {
           setVolumeHistory([]);
@@ -163,7 +173,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca history volume:", error);
-      },
+      }
     );
 
     return () => unsubscribe();
@@ -185,7 +195,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca pengaturan tandon:", error);
-      },
+      }
     );
 
     return () => unsubscribe();
@@ -213,7 +223,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca kontrol solenoid:", error);
-      },
+      }
     );
 
     return () => unsubscribe();
@@ -222,7 +232,7 @@ function App() {
   // --- Fungsi Helper Selection ---
   const handleSelectItem = (id) => {
     setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
@@ -236,7 +246,7 @@ function App() {
 
   const handleSelectVolumeItem = (id) => {
     setSelectedVolumeItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
@@ -256,7 +266,7 @@ function App() {
 
     try {
       const deletePromises = selectedItems.map((id) =>
-        remove(ref(db, `history/penggunaan/${id}`)),
+        remove(ref(db, `history/penggunaan/${id}`))
       );
       await Promise.all(deletePromises);
       setSelectedItems([]);
@@ -271,14 +281,14 @@ function App() {
     if (selectedVolumeItems.length === 0) return;
     if (
       !window.confirm(
-        `Hapus ${selectedVolumeItems.length} data volume terpilih?`,
+        `Hapus ${selectedVolumeItems.length} data volume terpilih?`
       )
     )
       return;
 
     try {
       const deletePromises = selectedVolumeItems.map((id) =>
-        remove(ref(db, `history/volume/${id}`)),
+        remove(ref(db, `history/volume/${id}`))
       );
       await Promise.all(deletePromises);
       setSelectedVolumeItems([]);
@@ -289,7 +299,7 @@ function App() {
     }
   };
 
-  // --- Fungsi Reset Volume ---
+  // --- Fungsi Reset Volume (VERSI FIX: Kirim Perintah ke ESP) ---
   const resetTotalVolume = async () => {
     if (dataMonitoring.totalVolume === 0) {
       alert("Total volume sudah 0, tidak perlu direset.");
@@ -299,22 +309,26 @@ function App() {
     if (
       !window.confirm(
         `Reset total volume ${dataMonitoring.totalVolume.toFixed(
-          0,
-        )} ml dan simpan ke history?`,
+          0
+        )} ml dan simpan ke history?`
       )
     ) {
       return;
     }
 
     try {
+      // 1. Simpan ke History (Arsip)
       await push(ref(db, "history/volume"), {
         total_ml: dataMonitoring.totalVolume,
         tanggal: new Date().toLocaleString("id-ID"),
         timestamp: serverTimestamp(),
       });
 
-      await set(ref(db, "monitoring/kolam/total_aliran_ml"), 0);
-      alert("✅ Total volume berhasil direset dan disimpan ke history!");
+      // 2. Kirim perintah TRUE ke path kontrol/perintah/reset_total
+      // ESP8266 akan mendeteksi ini dan mereset memori lokalnya
+      await set(ref(db, "kontrol/perintah/reset_total"), true);
+
+      alert("✅ Perintah Reset dikirim! Alat akan segera mereset data.");
     } catch (error) {
       console.error("Error reset total volume:", error);
       alert("❌ Gagal reset total volume: " + error.message);
@@ -362,18 +376,18 @@ function App() {
       const modeLabel = !isMasterOn
         ? "OFF"
         : selectedMode === "C"
-          ? "CONTINUE"
-          : selectedMode === "P"
-            ? "PARTIAL"
-            : "RANDOM";
+        ? "CONTINUE"
+        : selectedMode === "P"
+        ? "PARTIAL"
+        : "RANDOM";
 
       const detailLog = !isMasterOn
         ? "SISTEM BERHENTI"
         : selectedMode === "P"
-          ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
-          : selectedMode === "R"
-            ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
-            : "Terus Menerus";
+        ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
+        : selectedMode === "R"
+        ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
+        : "Terus Menerus";
 
       await push(ref(db, "history/penggunaan"), {
         tanggal: new Date().toLocaleString("id-ID"),
@@ -492,7 +506,7 @@ function App() {
 
   const getModeLabel = () => {
     if (!isMasterOn) return "OFF";
-    if (selectedMode === "C") return "CONTINUE";
+    if (selectedMode === "C"") return "CONTINUE";
     if (selectedMode === "P") return "PARTIAL";
     if (selectedMode === "R") return "RANDOM";
     return "UNKNOWN";
