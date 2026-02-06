@@ -24,19 +24,28 @@ import {
 import "./App.css";
 
 function App() {
-  // --- MODIFIKASI 1: Cek LocalStorage saat inisialisasi ---
+  // --- MODIFIKASI 1: Cek LocalStorage untuk Halaman Terakhir ---
   const [activePage, setActivePage] = useState(() => {
-    // Ambil data dari memori browser, jika tidak ada default ke "dashboard"
     return localStorage.getItem("last_active_page") || "dashboard";
   });
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // --- MODIFIKASI 2: Cek LocalStorage untuk Dark Mode ---
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // Cek memori browser, jika "true" maka aktifkan dark mode
+    return localStorage.getItem("is_dark_mode") === "true";
+  });
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // --- MODIFIKASI 2: Simpan ke LocalStorage setiap ganti halaman ---
+  // --- MODIFIKASI 3: Simpan Halaman ke LocalStorage saat berubah ---
   useEffect(() => {
     localStorage.setItem("last_active_page", activePage);
   }, [activePage]);
+
+  // --- MODIFIKASI 4: Simpan Dark Mode ke LocalStorage saat berubah ---
+  useEffect(() => {
+    localStorage.setItem("is_dark_mode", isDarkMode);
+  }, [isDarkMode]);
 
   // --- State Health Check (Deteksi Online/Offline) ---
   const [lastUpdate, setLastUpdate] = useState(Date.now());
