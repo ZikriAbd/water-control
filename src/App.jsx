@@ -608,7 +608,7 @@ function App() {
         {activePage === "dashboard" && (
           <div className="ac-dashboard-grid ac-fade-in">
             <div className="ac-card">
-              <h3>Level Air Tandon ?</h3>
+              <h3>Level Air Tandon</h3>
               <div className="ac-water-tank">
                 <div
                   className={`ac-water-level ${
