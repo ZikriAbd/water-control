@@ -111,7 +111,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca data monitoring:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -140,7 +140,7 @@ function App() {
           setHistoryData(
             Object.keys(data)
               .map((k) => ({ id: k, ...data[k] }))
-              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
           );
         } else {
           setHistoryData([]);
@@ -148,7 +148,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca riwayat:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -165,7 +165,7 @@ function App() {
           setVolumeHistory(
             Object.keys(data)
               .map((k) => ({ id: k, ...data[k] }))
-              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+              .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
           );
         } else {
           setVolumeHistory([]);
@@ -173,7 +173,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca history volume:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -195,7 +195,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca pengaturan tandon:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -223,7 +223,7 @@ function App() {
       },
       (error) => {
         console.error("Error membaca kontrol solenoid:", error);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -232,7 +232,7 @@ function App() {
   // --- Fungsi Helper Selection ---
   const handleSelectItem = (id) => {
     setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -246,7 +246,7 @@ function App() {
 
   const handleSelectVolumeItem = (id) => {
     setSelectedVolumeItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -266,7 +266,7 @@ function App() {
 
     try {
       const deletePromises = selectedItems.map((id) =>
-        remove(ref(db, `history/penggunaan/${id}`))
+        remove(ref(db, `history/penggunaan/${id}`)),
       );
       await Promise.all(deletePromises);
       setSelectedItems([]);
@@ -281,14 +281,14 @@ function App() {
     if (selectedVolumeItems.length === 0) return;
     if (
       !window.confirm(
-        `Hapus ${selectedVolumeItems.length} data volume terpilih?`
+        `Hapus ${selectedVolumeItems.length} data volume terpilih?`,
       )
     )
       return;
 
     try {
       const deletePromises = selectedVolumeItems.map((id) =>
-        remove(ref(db, `history/volume/${id}`))
+        remove(ref(db, `history/volume/${id}`)),
       );
       await Promise.all(deletePromises);
       setSelectedVolumeItems([]);
@@ -309,8 +309,8 @@ function App() {
     if (
       !window.confirm(
         `Reset total volume ${dataMonitoring.totalVolume.toFixed(
-          0
-        )} ml dan simpan ke history?`
+          0,
+        )} ml dan simpan ke history?`,
       )
     ) {
       return;
@@ -376,18 +376,18 @@ function App() {
       const modeLabel = !isMasterOn
         ? "OFF"
         : selectedMode === "C"
-        ? "CONTINUE"
-        : selectedMode === "P"
-        ? "PARTIAL"
-        : "RANDOM";
+          ? "CONTINUE"
+          : selectedMode === "P"
+            ? "PARTIAL"
+            : "RANDOM";
 
       const detailLog = !isMasterOn
         ? "SISTEM BERHENTI"
         : selectedMode === "P"
-        ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
-        : selectedMode === "R"
-        ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
-        : "Terus Menerus";
+          ? `ON:${partialSettings.durasi}m, OFF:${partialSettings.interval}m`
+          : selectedMode === "R"
+            ? `Jadwal:${randomSettings.mulai}-${randomSettings.selesai}`
+            : "Terus Menerus";
 
       await push(ref(db, "history/penggunaan"), {
         tanggal: new Date().toLocaleString("id-ID"),
@@ -506,7 +506,7 @@ function App() {
 
   const getModeLabel = () => {
     if (!isMasterOn) return "OFF";
-    if (selectedMode === "C"") return "CONTINUE";
+    if (selectedMode === "C") return "CONTINUE";
     if (selectedMode === "P") return "PARTIAL";
     if (selectedMode === "R") return "RANDOM";
     return "UNKNOWN";
